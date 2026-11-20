@@ -9,14 +9,12 @@
   IgnorableNamespaces="uap uap3 rescap">
 
   <Identity
-    Name="DockPulse"
-    Publisher="CN=Microsoft Corporation, O=Microsoft Corporation, L=Redmond, S=Washington, C=US"
-    Version="0.0.1.0" />
-  <!-- When you're ready to publish your extension, you'll need to change the
-       Publisher= to match your own identity -->
+    Name="FOZAIL.DockPulse"
+    Publisher="CN=D4392EAC-8B64-4605-B3DF-EA78C00CF40F"
+    Version="1.0.0.0" />
 
   <Properties>
-    <DisplayName>FOZAIL.DockPulse</DisplayName>
+    <DisplayName>DockPulse</DisplayName>
     <PublisherDisplayName>FOZAIL</PublisherDisplayName>
     <Logo>Assets\StoreLogo.png</Logo>
   </Properties>
