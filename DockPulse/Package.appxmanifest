@@ -16,8 +16,8 @@
        Publisher= to match your own identity -->
 
   <Properties>
-    <DisplayName>DockPulse</DisplayName>
-    <PublisherDisplayName>A Lone Developer</PublisherDisplayName>
+    <DisplayName>FOZAIL.DockPulse</DisplayName>
+    <PublisherDisplayName>FOZAIL</PublisherDisplayName>
     <Logo>Assets\StoreLogo.png</Logo>
   </Properties>
 
