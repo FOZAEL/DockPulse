@@ -21,7 +21,7 @@ internal sealed partial class NetworkUsagePage : ListPage
 
         Id = "com.dockpulse.page.network";
         Name = "Network Usage";
-        Title = "Network Data Usage (24h & This Month)";
+        Title = "Network Data Usage (Today & This Month)";
         Icon = new IconInfo("\uE774");
         PlaceholderText = "Filter network adapters...";
     }
@@ -49,10 +49,10 @@ internal sealed partial class NetworkUsagePage : ListPage
 
         items.Add(new ListItem(new OpenUriCommand("Open Data Usage Settings", "ms-settings:datausage", new IconInfo("\uE774")))
         {
-            Title = $"Last 24 Hours: {NetworkUsageService.FormatBytes(_snapshot.Total24h)}",
-            Subtitle = $"↓ {NetworkUsageService.FormatBytes(_snapshot.TotalReceived24h)}   •   ↑ {NetworkUsageService.FormatBytes(_snapshot.TotalSent24h)}",
+            Title = $"Today (since 00:00): {NetworkUsageService.FormatBytes(_snapshot.TotalToday)}",
+            Subtitle = $"↓ {NetworkUsageService.FormatBytes(_snapshot.TotalReceivedToday)}   •   ↑ {NetworkUsageService.FormatBytes(_snapshot.TotalSentToday)}",
             Icon = new IconInfo("\uE88A"),
-            Tags = [new Tag("24h")],
+            Tags = [new Tag("Today")],
         });
 
         items.Add(new ListItem(new OpenUriCommand("Open Data Usage Settings", "ms-settings:datausage", new IconInfo("\uE774")))
@@ -67,7 +67,7 @@ internal sealed partial class NetworkUsagePage : ListPage
         {
             var tags = new List<ITag>
             {
-                new Tag($"24h: {NetworkUsageService.FormatBytes(adapter.Total24h)}"),
+                new Tag($"Today: {NetworkUsageService.FormatBytes(adapter.TotalToday)}"),
                 new Tag($"Mo: {NetworkUsageService.FormatBytes(adapter.TotalMonth)}"),
             };
 
@@ -79,7 +79,7 @@ internal sealed partial class NetworkUsagePage : ListPage
             items.Add(new ListItem(new OpenUriCommand("Open Data Usage Settings", "ms-settings:datausage", new IconInfo("\uE839")))
             {
                 Title = adapter.ProfileName,
-                Subtitle = $"24h ↓{NetworkUsageService.FormatBytes(adapter.Received24h)} ↑{NetworkUsageService.FormatBytes(adapter.Sent24h)}  |  Month ↓{NetworkUsageService.FormatBytes(adapter.ReceivedMonth)} ↑{NetworkUsageService.FormatBytes(adapter.SentMonth)}",
+                Subtitle = $"Today ↓{NetworkUsageService.FormatBytes(adapter.ReceivedToday)} ↑{NetworkUsageService.FormatBytes(adapter.SentToday)}  |  Month ↓{NetworkUsageService.FormatBytes(adapter.ReceivedMonth)} ↑{NetworkUsageService.FormatBytes(adapter.SentMonth)}",
                 Icon = new IconInfo(adapter.IsActiveInternet ? "\uE701" : "\uE839"),
                 Tags = [.. tags],
             });

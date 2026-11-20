@@ -10,25 +10,26 @@ namespace DockPulse.Services;
 public sealed record AdapterUsage(
     string ProfileName,
     bool IsActiveInternet,
-    ulong Sent24h,
-    ulong Received24h,
+    ulong SentToday,
+    ulong ReceivedToday,
     ulong SentMonth,
     ulong ReceivedMonth)
 {
-    public ulong Total24h => Sent24h + Received24h;
+    public ulong TotalToday => SentToday + ReceivedToday;
     public ulong TotalMonth => SentMonth + ReceivedMonth;
 }
 
 public sealed record NetworkUsageSnapshot(
     DateTimeOffset UpdatedAt,
+    DateTimeOffset TodayStart,
     DateTimeOffset MonthStart,
-    ulong TotalSent24h,
-    ulong TotalReceived24h,
+    ulong TotalSentToday,
+    ulong TotalReceivedToday,
     ulong TotalSentMonth,
     ulong TotalReceivedMonth,
     IReadOnlyList<AdapterUsage> Adapters)
 {
-    public ulong Total24h => TotalSent24h + TotalReceived24h;
+    public ulong TotalToday => TotalSentToday + TotalReceivedToday;
     public ulong TotalMonth => TotalSentMonth + TotalReceivedMonth;
 }
 
@@ -37,8 +38,13 @@ public sealed class NetworkUsageService
     public async Task<NetworkUsageSnapshot> GetUsageAsync()
     {
         var now = DateTimeOffset.Now;
-        var start24h = now.AddHours(-24);
+
+        // Midnight (00:00:00) local time at the start of today
+        var todayStart = new DateTimeOffset(now.Year, now.Month, now.Day, 0, 0, 0, now.Offset);
         var monthStart = new DateTimeOffset(now.Year, now.Month, 1, 0, 0, 0, now.Offset);
+
+        // Guard against exact midnight tick (GetNetworkUsageAsync requires startTime < endTime)
+        var queryEnd = now > todayStart ? now : todayStart.AddSeconds(1);
 
         var states = new NetworkUsageStates
         {
@@ -51,7 +57,7 @@ public sealed class NetworkUsageService
         var seenProfiles = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var adapters = new List<AdapterUsage>();
 
-        ulong sumSent24h = 0, sumRecv24h = 0;
+        ulong sumSentToday = 0, sumRecvToday = 0;
         ulong sumSentMonth = 0, sumRecvMonth = 0;
 
         foreach (var profile in profiles)
@@ -69,14 +75,14 @@ public sealed class NetworkUsageService
 
             try
             {
-                var usage24h = await profile.GetNetworkUsageAsync(start24h, now, DataUsageGranularity.Total, states);
-                var usageMonth = await profile.GetNetworkUsageAsync(monthStart, now, DataUsageGranularity.Total, states);
+                var usageToday = await profile.GetNetworkUsageAsync(todayStart, queryEnd, DataUsageGranularity.Total, states);
+                var usageMonth = await profile.GetNetworkUsageAsync(monthStart, queryEnd, DataUsageGranularity.Total, states);
 
-                ulong s24 = 0, r24 = 0;
-                foreach (var u in usage24h)
+                ulong sToday = 0, rToday = 0;
+                foreach (var u in usageToday)
                 {
-                    s24 += u.BytesSent;
-                    r24 += u.BytesReceived;
+                    sToday += u.BytesSent;
+                    rToday += u.BytesReceived;
                 }
 
                 ulong sMonth = 0, rMonth = 0;
@@ -88,18 +94,18 @@ public sealed class NetworkUsageService
 
                 bool isActive = string.Equals(profile.ProfileName, activeProfileName, StringComparison.OrdinalIgnoreCase);
 
-                if (s24 + r24 + sMonth + rMonth > 0 || isActive)
+                if (sToday + rToday + sMonth + rMonth > 0 || isActive)
                 {
                     adapters.Add(new AdapterUsage(
                         ProfileName: profile.ProfileName,
                         IsActiveInternet: isActive,
-                        Sent24h: s24,
-                        Received24h: r24,
+                        SentToday: sToday,
+                        ReceivedToday: rToday,
                         SentMonth: sMonth,
                         ReceivedMonth: rMonth));
 
-                    sumSent24h += s24;
-                    sumRecv24h += r24;
+                    sumSentToday += sToday;
+                    sumRecvToday += rToday;
                     sumSentMonth += sMonth;
                     sumRecvMonth += rMonth;
                 }
@@ -117,9 +123,10 @@ public sealed class NetworkUsageService
 
         return new NetworkUsageSnapshot(
             UpdatedAt: now,
+            TodayStart: todayStart,
             MonthStart: monthStart,
-            TotalSent24h: sumSent24h,
-            TotalReceived24h: sumRecv24h,
+            TotalSentToday: sumSentToday,
+            TotalReceivedToday: sumRecvToday,
             TotalSentMonth: sumSentMonth,
             TotalReceivedMonth: sumRecvMonth,
             Adapters: ordered);

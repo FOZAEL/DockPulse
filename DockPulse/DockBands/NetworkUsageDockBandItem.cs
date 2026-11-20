@@ -21,7 +21,7 @@ internal sealed partial class NetworkUsageDockBandItem : ListItem, IDisposable
         _service = service;
         _page = page;
 
-        Title = "24h --";
+        Title = "-- GB";
         Subtitle = "Mo --";
         Icon = new IconInfo("\uE774");
 
@@ -31,6 +31,7 @@ internal sealed partial class NetworkUsageDockBandItem : ListItem, IDisposable
             new CommandContextItem(new OpenUriCommand("Data Usage Settings", "ms-settings:datausage", new IconInfo("\uE713"))),
         ];
 
+        // Immediate poll, then every 2 minutes (Windows SRUM updates periodically)
         _timer = new Timer(_ => _ = RefreshAsync(), null, TimeSpan.Zero, TimeSpan.FromMinutes(2));
     }
 
@@ -46,14 +47,14 @@ internal sealed partial class NetworkUsageDockBandItem : ListItem, IDisposable
             var snapshot = await _service.GetUsageAsync().ConfigureAwait(false);
             _page.UpdateSnapshot(snapshot);
 
-            Title = $"24h {NetworkUsageService.FormatBytes(snapshot.Total24h)}";
+            Title = NetworkUsageService.FormatBytes(snapshot.TotalToday);
             Subtitle = $"Mo {NetworkUsageService.FormatBytes(snapshot.TotalMonth)}";
             Icon = new IconInfo("\uE774");
         }
         catch
         {
-            Title = "Net N/A";
-            Subtitle = "Usage";
+            Title = "N/A";
+            Subtitle = string.Empty;
         }
         finally
         {

@@ -48,8 +48,8 @@ public partial class DockPulseCommandsProvider : CommandProvider
             },
             new CommandItem(_networkPage)
             {
-                Title = "Network Usage (24h & This Month)",
-                Subtitle = "View network data consumption over the last 24 hours and current month",
+                Title = "Network Usage (Today & This Month)",
+                Subtitle = "View network data consumption today (since midnight) and this month",
                 Icon = new IconInfo("\uE774"),
             },
         ];
