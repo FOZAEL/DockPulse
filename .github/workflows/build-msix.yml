@@ -1,0 +1,85 @@
+name: Build MSIX Bundle
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 9 SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '9.0.x'
+
+      - name: Locate extension project
+        id: proj
+        shell: pwsh
+        run: |
+          $csproj = Get-ChildItem -Recurse -Filter "*.csproj" | Select-Object -First 1
+          if (-not $csproj) { throw "No .csproj found!" }
+          "dir=$($csproj.DirectoryName)" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          "file=$($csproj.Name)" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          "name=$($csproj.BaseName)" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          Write-Host "Found project: $($csproj.FullName)"
+
+      - name: Build x64 MSIX
+        working-directory: ${{ steps.proj.outputs.dir }}
+        run: >
+          dotnet build ${{ steps.proj.outputs.file }}
+          --configuration Release
+          -p:Platform=x64
+          -p:GenerateAppxPackageOnBuild=true
+          -p:AppxPackageSigningEnabled=false
+          -p:AppxBundle=Never
+          -p:AppxPackageDir="AppPackages\x64\"
+
+      - name: Build ARM64 MSIX
+        working-directory: ${{ steps.proj.outputs.dir }}
+        run: >
+          dotnet build ${{ steps.proj.outputs.file }}
+          --configuration Release
+          -p:Platform=ARM64
+          -p:GenerateAppxPackageOnBuild=true
+          -p:AppxPackageSigningEnabled=false
+          -p:AppxBundle=Never
+          -p:AppxPackageDir="AppPackages\ARM64\"
+
+      - name: Create .msixbundle for Microsoft Store
+        working-directory: ${{ steps.proj.outputs.dir }}
+        shell: pwsh
+        run: |
+          $x64Msix = Get-ChildItem -Path "AppPackages\x64" -Recurse -Filter "*.msix" | Select-Object -First 1
+          $arm64Msix = Get-ChildItem -Path "AppPackages\ARM64" -Recurse -Filter "*.msix" | Select-Object -First 1
+
+          if (-not $x64Msix -or -not $arm64Msix) {
+            throw "Expected both x64 and ARM64 .msix packages."
+          }
+
+          @(
+            "[Files]"
+            "`"$($x64Msix.FullName)`" `"$($x64Msix.Name)`""
+            "`"$($arm64Msix.FullName)`" `"$($arm64Msix.Name)`""
+          ) | Set-Content -Path "bundle_mapping.txt" -Encoding ASCII
+
+          $makeAppx = Get-ChildItem "C:\Program Files (x86)\Windows Kits\10\bin\*\x64\makeappx.exe" |
+            Sort-Object FullName -Descending | Select-Object -First 1
+
+          if (-not $makeAppx) { throw "makeappx.exe not found." }
+
+          $bundleName = "${{ steps.proj.outputs.name }}_Bundle.msixbundle"
+          & $makeAppx.FullName bundle /f bundle_mapping.txt /p $bundleName /o
+
+      - name: Upload MSIX Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: Extension-Store-Bundle
+          path: |
+            ${{ steps.proj.outputs.dir }}\*_Bundle.msixbundle
+            ${{ steps.proj.outputs.dir }}\AppPackages\**\*.msix

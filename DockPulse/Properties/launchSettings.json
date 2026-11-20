@@ -1,0 +1,11 @@
+{
+  "profiles": {
+    "DockPulse (Package)": {
+      "commandName": "MsixPackage",
+      "doNotLaunchApp": true
+    },
+    "DockPulse (Unpackaged)": {
+      "commandName": "Project"
+    }
+  }
+}
