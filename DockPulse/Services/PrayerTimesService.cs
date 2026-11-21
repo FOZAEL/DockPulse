@@ -19,7 +19,9 @@ public sealed record PrayerCalculationMethod(
     double FajrAngle,
     double IshaAngle,
     double IshaMinutesAfterMaghrib = 0,
-    int DhuhrMinuteMargin = 1);
+    int DhuhrMinuteMargin = 1,
+    double MaghribAngle = 0.833,
+    bool IsShia = false);
 
 public sealed record PrayerRegion(
     string Id,
@@ -96,14 +98,15 @@ public sealed record PrayerScheduleSnapshot(
 }
 
 /// <summary>
-/// Offline astronomical Sunni prayer time calculator using standard solar position
-/// equations (NOAA / Meeus) with support for 10 Sunni calculation conventions,
-/// Hanafi &amp; Standard (Shafi'i/Maliki/Hanbali) Asr schools, and high-latitude fallback.
+/// Offline astronomical Islamic prayer time calculator (Sunni &amp; Shia) using standard solar
+/// position equations (NOAA / Meeus) with 12 calculation conventions, Hanafi &amp; Standard
+/// Asr schools, Jafari/Tehran Maghrib angles, and high-latitude fallback.
 /// </summary>
 public sealed class PrayerTimesService
 {
     public static readonly IReadOnlyList<PrayerCalculationMethod> Methods =
     [
+        // Sunni conventions
         new("karachi", "University of Islamic Sciences, Karachi", "Karachi (18°/18°)", 18.0, 18.0),
         new("mwl", "Muslim World League", "MWL (18°/17°)", 18.0, 17.0),
         new("umm_al_qura", "Umm al-Qura University, Makkah", "Umm al-Qura (18.5°/90m)", 18.5, 0.0, IshaMinutesAfterMaghrib: 90),
@@ -114,6 +117,10 @@ public sealed class PrayerTimesService
         new("jakim", "JAKIM / MUIS / Kemenag (SE Asia)", "SE Asia (20°/18°)", 20.0, 18.0),
         new("kuwait", "Kuwait Ministry of Awqaf", "Kuwait (18°/17.5°)", 18.0, 17.5),
         new("qatar", "Qatar Awqaf", "Qatar (18°/90m)", 18.0, 0.0, IshaMinutesAfterMaghrib: 90),
+
+        // Shia conventions
+        new("jafari", "Shia Ithna-Ashari / Jafari (Leva Institute, Qum)", "Jafari (16°/4°/14°)", 16.0, 14.0, MaghribAngle: 4.0, IsShia: true),
+        new("tehran", "Institute of Geophysics, University of Tehran", "Tehran (17.7°/4.5°/14°)", 17.7, 14.0, MaghribAngle: 4.5, IsShia: true),
     ];
 
     public static readonly IReadOnlyList<PrayerRegion> Regions =
@@ -138,6 +145,14 @@ public sealed class PrayerTimesService
         new("amman", "Amman", "Jordan", 31.9454, 35.9284, "Jordan Standard Time", "egypt", AsrJuristicSchool.Standard),
         new("jerusalem", "Jerusalem", "Palestine", 31.7683, 35.2137, "Israel Standard Time", "egypt", AsrJuristicSchool.Standard),
         new("baghdad", "Baghdad", "Iraq", 33.3152, 44.3661, "Arabic Standard Time", "mwl", AsrJuristicSchool.Standard),
+        new("najaf", "Najaf", "Iraq", 31.9960, 44.3148, "Arabic Standard Time", "jafari", AsrJuristicSchool.Standard),
+        new("karbala", "Karbala", "Iraq", 32.6160, 44.0249, "Arabic Standard Time", "jafari", AsrJuristicSchool.Standard),
+        new("tehran", "Tehran", "Iran", 35.6892, 51.3890, "Iran Standard Time", "tehran", AsrJuristicSchool.Standard),
+        new("mashhad", "Mashhad", "Iran", 36.2605, 59.6168, "Iran Standard Time", "tehran", AsrJuristicSchool.Standard),
+        new("qom", "Qom", "Iran", 34.6416, 50.8746, "Iran Standard Time", "jafari", AsrJuristicSchool.Standard),
+        new("isfahan", "Isfahan", "Iran", 32.6546, 51.6680, "Iran Standard Time", "tehran", AsrJuristicSchool.Standard),
+        new("manama", "Manama", "Bahrain", 26.2285, 50.5860, "Arab Standard Time", "umm_al_qura", AsrJuristicSchool.Standard),
+        new("baku", "Baku", "Azerbaijan", 40.4093, 49.8671, "Azerbaijan Standard Time", "jafari", AsrJuristicSchool.Standard),
         new("beirut", "Beirut", "Lebanon", 33.8938, 35.5018, "Middle East Standard Time", "egypt", AsrJuristicSchool.Standard),
         new("istanbul", "Istanbul", "Turkey", 41.0082, 28.9784, "Turkey Standard Time", "diyanet", AsrJuristicSchool.Hanafi),
         new("ankara", "Ankara", "Turkey", 39.9334, 32.8597, "Turkey Standard Time", "diyanet", AsrJuristicSchool.Hanafi),
@@ -269,6 +284,11 @@ public sealed class PrayerTimesService
         lock (_configLock)
         {
             _selectedMethod = method;
+            if (method.IsShia)
+            {
+                _selectedAsrSchool = AsrJuristicSchool.Standard;
+            }
+
             SaveConfigLocked();
         }
 
@@ -377,8 +397,8 @@ public sealed class PrayerTimesService
 
     public static string GetPrayerGlyph(string prayerName) => prayerName switch
     {
-        "Dhuhr" or "Asr" or "Sunrise" => "\uE706", // Sun
-        _ => "\uE708",                             // Crescent moon (Fajr, Maghrib, Isha)
+        "Dhuhr" or "Asr" or "Sunrise" or "Sunset" => "\uE706", // Sun
+        _ => "\uE708",                                         // Crescent moon (Fajr, Maghrib, Isha)
     };
 
     public static string FormatAsrSchoolName(AsrJuristicSchool school) => school switch
@@ -401,41 +421,56 @@ public sealed class PrayerTimesService
         double jd = JulianDate(date.Year, date.Month, date.Day) - (region.Longitude / (15.0 * 24.0));
 
         double sunrise = ComputeSunAngleTime(jd, region.Latitude, 0.833, 6.0 / 24.0, ccw: true);
-        double maghrib = ComputeSunAngleTime(jd, region.Latitude, 0.833, 18.0 / 24.0, ccw: false);
+        double sunset = ComputeSunAngleTime(jd, region.Latitude, 0.833, 18.0 / 24.0, ccw: false);
         double dhuhr = ComputeMidDay(jd, 12.0 / 24.0) + (method.DhuhrMinuteMargin / 60.0);
         double asr = ComputeAsrTime(jd, region.Latitude, (int)asrSchool, 13.0 / 24.0);
         double fajr = ComputeSunAngleTime(jd, region.Latitude, method.FajrAngle, 5.0 / 24.0, ccw: true);
+
+        bool usesCustomMaghribAngle = method.MaghribAngle > 0.834;
+        double maghrib = usesCustomMaghribAngle
+            ? ComputeSunAngleTime(jd, region.Latitude, method.MaghribAngle, 18.0 / 24.0, ccw: false)
+            : sunset;
 
         double isha = method.IshaMinutesAfterMaghrib > 0
             ? maghrib + (method.IshaMinutesAfterMaghrib / 60.0)
             : ComputeSunAngleTime(jd, region.Latitude, method.IshaAngle, 18.0 / 24.0, ccw: false);
 
         // Angle-based high-latitude fallback when sun does not reach twilight depression in midsummer
-        double nightDuration = FixHour(sunrise - maghrib);
-        if (double.IsNaN(fajr) || FixHour(sunrise - fajr) > (method.FajrAngle / 60.0) * nightDuration + 2.0)
+        double nightDuration = FixHour(sunrise - sunset);
+        if (double.IsNaN(fajr))
         {
-            if (double.IsNaN(fajr))
-            {
-                fajr = sunrise - (method.FajrAngle / 60.0 * nightDuration);
-            }
+            fajr = sunrise - (method.FajrAngle / 60.0 * nightDuration);
+        }
+
+        if (usesCustomMaghribAngle && double.IsNaN(maghrib))
+        {
+            maghrib = sunset + (method.MaghribAngle / 60.0 * nightDuration);
         }
 
         if (method.IshaMinutesAfterMaghrib <= 0 && double.IsNaN(isha))
         {
-            isha = maghrib + (method.IshaAngle / 60.0 * nightDuration);
+            isha = sunset + (method.IshaAngle / 60.0 * nightDuration);
         }
 
         double shift = tzHours - (region.Longitude / 15.0);
 
-        return
-        [
+        var entries = new List<PrayerEntry>(usesCustomMaghribAngle ? 7 : 6)
+        {
             new("Fajr", ToDateTimeOffset(date, fajr + shift, utcOffset), IsObligatory: true, false, false, false),
             new("Sunrise", ToDateTimeOffset(date, sunrise + shift, utcOffset), IsObligatory: false, false, false, false),
             new("Dhuhr", ToDateTimeOffset(date, dhuhr + shift, utcOffset), IsObligatory: true, false, false, false),
             new("Asr", ToDateTimeOffset(date, asr + shift, utcOffset), IsObligatory: true, false, false, false),
-            new("Maghrib", ToDateTimeOffset(date, maghrib + shift, utcOffset), IsObligatory: true, false, false, false),
-            new("Isha", ToDateTimeOffset(date, isha + shift, utcOffset), IsObligatory: true, false, false, false),
-        ];
+        };
+
+        if (usesCustomMaghribAngle)
+        {
+            entries.Add(new("Sunset", ToDateTimeOffset(date, sunset + shift, utcOffset), IsObligatory: false, false, false, false));
+        }
+
+        entries.Add(new("Maghrib", ToDateTimeOffset(date, maghrib + shift, utcOffset), IsObligatory: true, false, false, false));
+        entries.Add(new("Isha", ToDateTimeOffset(date, isha + shift, utcOffset), IsObligatory: true, false, false, false));
+
+        return entries;
     }
 
     private static DateTimeOffset ToDateTimeOffset(DateOnly date, double localHours, TimeSpan utcOffset)

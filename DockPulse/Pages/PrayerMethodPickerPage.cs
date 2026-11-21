@@ -17,9 +17,9 @@ internal sealed partial class PrayerMethodPickerPage : ListPage
 
         Id = "com.dockpulse.page.prayer.method";
         Name = "Calculation Method";
-        Title = "Sunni Prayer Calculation Method";
+        Title = "Prayer Calculation Method (Sunni & Shia)";
         Icon = new IconInfo("\uE909");
-        PlaceholderText = "Filter calculation methods...";
+        PlaceholderText = "Filter Sunni or Shia calculation methods...";
 
         _service.ConfigurationChanged += () => RaiseItemsChanged(PrayerTimesService.Methods.Count);
     }
@@ -36,10 +36,18 @@ internal sealed partial class PrayerMethodPickerPage : ListPage
                 ? $"{method.IshaMinutesAfterMaghrib:0} min after Maghrib"
                 : $"{method.IshaAngle:0.#}°";
 
-            var tags = new List<ITag>();
+            string maghribDesc = method.MaghribAngle > 0.834
+                ? $"  •  Maghrib: {method.MaghribAngle:0.#}°"
+                : string.Empty;
+
+            var tags = new List<ITag>
+            {
+                new Tag(method.IsShia ? "Shia" : "Sunni"),
+            };
+
             if (isSelected)
             {
-                tags.Add(new Tag("Selected"));
+                tags.Insert(0, new Tag("Selected"));
             }
 
             string targetMethodId = method.Id;
@@ -50,7 +58,7 @@ internal sealed partial class PrayerMethodPickerPage : ListPage
                 result: CommandResult.GoBack()))
             {
                 Title = method.Name,
-                Subtitle = $"Fajr: {method.FajrAngle:0.#}°  •  Isha: {ishaDesc}",
+                Subtitle = $"Fajr: {method.FajrAngle:0.#}°{maghribDesc}  •  Isha: {ishaDesc}",
                 Icon = new IconInfo(isSelected ? "\uE73E" : "\uE909"),
                 Tags = [.. tags],
             });

@@ -17,9 +17,9 @@ internal sealed partial class PrayerRegionPickerPage : ListPage
 
         Id = "com.dockpulse.page.prayer.region";
         Name = "Select Region";
-        Title = "Select Region / City (Sunni Prayer Times)";
+        Title = "Select Region / City (Prayer Times)";
         Icon = new IconInfo("\uE707");
-        PlaceholderText = "Search city or country (e.g. Kabul, Dubai, Makkah, London)...";
+        PlaceholderText = "Search city or country (e.g. Kabul, Tehran, Najaf, Dubai, Makkah, London)...";
 
         _service.ConfigurationChanged += () => RaiseItemsChanged(PrayerTimesService.Regions.Count);
     }

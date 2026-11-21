@@ -30,7 +30,7 @@ internal sealed partial class PrayerTimesPage : ListPage
 
         Id = "com.dockpulse.page.prayer";
         Name = "Prayer Times";
-        Title = "Sunni Prayer Times";
+        Title = "Prayer Times (Sunni & Shia)";
         Icon = new IconInfo("\uE708");
         PlaceholderText = "Filter prayers or settings...";
     }
@@ -75,8 +75,16 @@ internal sealed partial class PrayerTimesPage : ListPage
             string statusText;
             if (!entry.IsObligatory)
             {
-                tags.Add(new Tag("Sunrise"));
-                statusText = entry.IsPassed ? "Fajr window ended" : "Marks end of Fajr";
+                if (string.Equals(entry.Name, "Sunset", StringComparison.Ordinal))
+                {
+                    tags.Add(new Tag("Sunset"));
+                    statusText = entry.IsPassed ? "Sun has set" : "Maghrib follows after twilight";
+                }
+                else
+                {
+                    tags.Add(new Tag("Sunrise"));
+                    statusText = entry.IsPassed ? "Fajr window ended" : "Marks end of Fajr";
+                }
             }
             else if (entry.IsNext)
             {
@@ -110,7 +118,7 @@ internal sealed partial class PrayerTimesPage : ListPage
         items.Add(new ListItem(_regionPickerPage)
         {
             Title = $"Change Region / City ({snapshot.Region.DisplayName})",
-            Subtitle = "Choose from 50+ cities worldwide (auto-sets local Sunni defaults)",
+            Subtitle = "Choose from 60+ cities worldwide (auto-sets local defaults)",
             Icon = new IconInfo("\uE707"),
             Tags = [new Tag("Region")],
         });
@@ -118,7 +126,7 @@ internal sealed partial class PrayerTimesPage : ListPage
         items.Add(new ListItem(new ActionCommand("Toggle Asr School", () => _service.ToggleAsrSchool(), new IconInfo("\uE8AB")))
         {
             Title = $"Asr School: {PrayerTimesService.FormatAsrSchoolName(snapshot.AsrSchool)}",
-            Subtitle = "Click to switch between Hanafi (2x shadow) and Standard (Shafi'i / Maliki / Hanbali)",
+            Subtitle = "Click to switch between Hanafi (2x shadow) and Standard (Shafi'i / Maliki / Hanbali / Jafari)",
             Icon = new IconInfo("\uE8AB"),
             Tags = [new Tag(snapshot.AsrSchool == AsrJuristicSchool.Hanafi ? "Hanafi" : "Standard")],
         });
@@ -126,9 +134,9 @@ internal sealed partial class PrayerTimesPage : ListPage
         items.Add(new ListItem(_methodPickerPage)
         {
             Title = $"Calculation Method: {snapshot.Method.ShortName}",
-            Subtitle = snapshot.Method.Name,
+            Subtitle = $"{(snapshot.Method.IsShia ? "Shia" : "Sunni")} • {snapshot.Method.Name}",
             Icon = new IconInfo("\uE909"),
-            Tags = [new Tag("Method")],
+            Tags = [new Tag(snapshot.Method.IsShia ? "Shia" : "Sunni")],
         });
 
         items.Add(new ListItem(new ActionCommand("Refresh Prayer Times", TriggerRefresh, new IconInfo("\uE72C")))

@@ -70,8 +70,8 @@ public partial class DockPulseCommandsProvider : CommandProvider
             },
             new CommandItem(_prayerPage)
             {
-                Title = "Sunni Prayer Times",
-                Subtitle = "Countdown to next Sunni prayer time with 50+ selectable regions, Hanafi/Standard Asr, and methods",
+                Title = "Prayer Times (Sunni & Shia)",
+                Subtitle = "Countdown to next prayer time with 60+ selectable regions, Sunni & Shia methods, and Asr schools",
                 Icon = new IconInfo("\uE708"),
             },
         ];
@@ -130,7 +130,7 @@ public partial class DockPulseCommandsProvider : CommandProvider
             return new CommandItem(_prayerRegionPage)
             {
                 Title = "Select Prayer Region / City",
-                Subtitle = "Choose city for Sunni prayer times",
+                Subtitle = "Choose city for Sunni & Shia prayer times",
                 Icon = new IconInfo("\uE707"),
             };
         }
