@@ -10,13 +10,18 @@ public partial class DockPulseCommandsProvider : CommandProvider
 {
     private readonly WirelessBatteryService _wirelessService;
     private readonly NetworkUsageService _networkService;
+    private readonly PrayerTimesService _prayerService;
 
     private readonly WirelessDevicesPage _wirelessPage;
     private readonly NetworkUsageGraphPage _networkGraphPage;
     private readonly NetworkUsagePage _networkPage;
+    private readonly PrayerRegionPickerPage _prayerRegionPage;
+    private readonly PrayerMethodPickerPage _prayerMethodPage;
+    private readonly PrayerTimesPage _prayerPage;
 
     private readonly WirelessBatteryDockBandItem _wirelessDockItem;
     private readonly NetworkUsageDockBandItem _networkDockItem;
+    private readonly PrayerTimesDockBandItem _prayerDockItem;
 
     private readonly ICommandItem[] _topLevelCommands;
     private readonly ICommandItem[] _dockBands;
@@ -29,31 +34,45 @@ public partial class DockPulseCommandsProvider : CommandProvider
 
         _wirelessService = new WirelessBatteryService();
         _networkService = new NetworkUsageService();
+        _prayerService = new PrayerTimesService();
 
         _wirelessPage = new WirelessDevicesPage(_wirelessService);
         _networkGraphPage = new NetworkUsageGraphPage(_networkService);
         _networkPage = new NetworkUsagePage(_networkService, _networkGraphPage);
+        _networkGraphPage.AttachAdapterListPage(_networkPage);
+
+        _prayerRegionPage = new PrayerRegionPickerPage(_prayerService);
+        _prayerMethodPage = new PrayerMethodPickerPage(_prayerService);
+        _prayerPage = new PrayerTimesPage(_prayerService, _prayerRegionPage, _prayerMethodPage);
 
         _wirelessDockItem = new WirelessBatteryDockBandItem(_wirelessService, _wirelessPage);
         _networkDockItem = new NetworkUsageDockBandItem(_networkService, _networkPage, _networkGraphPage);
+        _prayerDockItem = new PrayerTimesDockBandItem(_prayerService, _prayerPage, _prayerRegionPage, _prayerMethodPage);
 
         _wirelessPage.OnManualRefresh = () => _ = _wirelessDockItem.RefreshAsync(forceUncached: true);
         _networkPage.OnManualRefresh = () => _ = _networkDockItem.RefreshAsync();
         _networkGraphPage.OnManualRefresh = () => _ = _networkDockItem.RefreshAsync();
+        _prayerPage.OnManualRefresh = () => _prayerDockItem.Refresh();
 
         _topLevelCommands =
         [
             new CommandItem(_wirelessPage)
             {
                 Title = "Wireless Device Batteries",
-                Subtitle = "View battery levels of Bluetooth, BLE, Logitech Wireless (LIGHTSPEED/Bolt/Unifying), and Xbox devices",
+                Subtitle = "View battery levels of Bluetooth, BLE, AirPods, Logitech LIGHTSPEED/Bolt/Unifying, and Xbox devices",
                 Icon = new IconInfo("\uE702"),
             },
-            new CommandItem(_networkPage)
+            new CommandItem(_networkGraphPage)
             {
                 Title = "Network Usage (Today & This Month)",
-                Subtitle = "View network data consumption and usage graphs for today (since midnight) and this month",
+                Subtitle = "View hourly & monthly network data graphs and per-adapter usage breakdown",
                 Icon = new IconInfo("\uE774"),
+            },
+            new CommandItem(_prayerPage)
+            {
+                Title = "Sunni Prayer Times",
+                Subtitle = "Countdown to next Sunni prayer time with 50+ selectable regions, Hanafi/Standard Asr, and methods",
+                Icon = new IconInfo("\uE708"),
             },
         ];
 
@@ -67,6 +86,10 @@ public partial class DockPulseCommandsProvider : CommandProvider
                 [_networkDockItem],
                 "com.dockpulse.band.network",
                 "Network Usage"),
+            new WrappedDockItem(
+                [_prayerDockItem],
+                "com.dockpulse.band.prayer",
+                "Next Prayer Time"),
         ];
     }
 
@@ -92,13 +115,23 @@ public partial class DockPulseCommandsProvider : CommandProvider
             }
         }
 
-        if (_networkGraphPage.Id == id)
+        if (_networkPage.Id == id)
         {
-            return new CommandItem(_networkGraphPage)
+            return new CommandItem(_networkPage)
             {
-                Title = "Network Usage Graphs",
-                Subtitle = "Today (Hourly) & This Month (Daily) visual usage charts",
-                Icon = new IconInfo("\uE9D2"),
+                Title = "Network Adapter Details",
+                Subtitle = "Filter per-adapter network usage and daily graphs",
+                Icon = new IconInfo("\uE839"),
+            };
+        }
+
+        if (_prayerRegionPage.Id == id)
+        {
+            return new CommandItem(_prayerRegionPage)
+            {
+                Title = "Select Prayer Region / City",
+                Subtitle = "Choose city for Sunni prayer times",
+                Icon = new IconInfo("\uE707"),
             };
         }
 

@@ -8,13 +8,19 @@ namespace DockPulse.Commands;
 internal sealed partial class ActionCommand : InvokableCommand
 {
     private readonly Action _action;
-    private readonly bool _keepOpen;
+    private readonly ICommandResult _result;
 
-    public ActionCommand(string name, Action action, IconInfo? icon = null, string? id = null, bool keepOpen = true)
+    public ActionCommand(
+        string name,
+        Action action,
+        IconInfo? icon = null,
+        string? id = null,
+        bool keepOpen = true,
+        ICommandResult? result = null)
     {
         Name = name;
         _action = action;
-        _keepOpen = keepOpen;
+        _result = result ?? (keepOpen ? CommandResult.KeepOpen() : CommandResult.Dismiss());
 
         if (icon is not null)
         {
@@ -30,7 +36,7 @@ internal sealed partial class ActionCommand : InvokableCommand
     public override ICommandResult Invoke()
     {
         _action();
-        return _keepOpen ? CommandResult.KeepOpen() : CommandResult.Dismiss();
+        return _result;
     }
 }
 

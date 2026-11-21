@@ -88,16 +88,11 @@ public static class NetworkChartRenderer
             }
         }
 
-        // Header: Title on left (2x crisp font), Subtitle below it (1x crisp font)
+        // Header: Title on left, Subtitle below it, Legend on top-right (auto-scale title for narrow Details cards)
         const int padLeft = 18;
         const int padRight = 18;
-        canvas.DrawText(title.ToUpperInvariant(), padLeft, 14, palette.TextPrimary, scale: 2);
-        if (!string.IsNullOrWhiteSpace(subtitle))
-        {
-            canvas.DrawText(subtitle, padLeft, 34, palette.TextSecondary, scale: 1);
-        }
 
-        // Legend on top-right: [swatch] DOWN xxx   [swatch] UP xxx
+        string upperTitle = title.ToUpperInvariant();
         string upText = $"UP {NetworkUsageService.FormatBytes(totalUp)}";
         string downText = $"DOWN {NetworkUsageService.FormatBytes(totalDown)}";
 
@@ -105,17 +100,24 @@ public static class NetworkChartRenderer
         int downTextWidth = PixelCanvas.MeasureText(downText, scale: 1);
         const int swatchSize = 8;
         const int swatchGap = 5;
-        const int legendGap = 14;
+        const int legendGap = 12;
 
         int upX = width - padRight - upTextWidth;
         int upSwatchX = upX - swatchGap - swatchSize;
         int downX = upSwatchX - legendGap - downTextWidth;
         int downSwatchX = downX - swatchGap - swatchSize;
 
-        // Only draw legend on top row if it doesn't collide with title
-        int titleRight = padLeft + PixelCanvas.MeasureText(title.ToUpperInvariant(), scale: 2) + 12;
-        int legendY = downSwatchX >= titleRight ? 17 : 34;
+        int titleScale = (padLeft + PixelCanvas.MeasureText(upperTitle, scale: 2) + 12 <= downSwatchX) ? 2 : 1;
+        int titleY = titleScale == 2 ? 14 : 16;
+        int subtitleY = titleScale == 2 ? 34 : 30;
 
+        canvas.DrawText(upperTitle, padLeft, titleY, palette.TextPrimary, scale: titleScale);
+        if (!string.IsNullOrWhiteSpace(subtitle))
+        {
+            canvas.DrawText(subtitle, padLeft, subtitleY, palette.TextSecondary, scale: 1);
+        }
+
+        int legendY = 16;
         canvas.FillRoundedRect(downSwatchX, legendY + 1, swatchSize, swatchSize, 2, palette.DownloadBar);
         canvas.DrawText(downText, downX, legendY, palette.TextPrimary, scale: 1);
 

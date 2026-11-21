@@ -11,7 +11,7 @@
   <Identity
     Name="FOZAIL.DockPulse"
     Publisher="CN=D4392EAC-8B64-4605-B3DF-EA78C00CF40F"
-    Version="1.0.2.0" />
+    Version="1.0.3.0" />
 
   <Properties>
     <DisplayName>DockPulse</DisplayName>

@@ -74,20 +74,24 @@ internal sealed partial class NetworkUsagePage : ListPage
             subtitle: $"SINCE 00:00  |  PEAK: {peakHour.ToUpperInvariant()}",
             buckets: snapshot.HourlyToday,
             activeBucketIndex: snapshot.CurrentHour,
-            isDarkTheme: true);
+            isDarkTheme: true,
+            width: 400,
+            height: 185);
 
         string monthChartUri = NetworkChartRenderer.RenderBarChartDataUri(
             title: $"{monthLabel} Daily",
             subtitle: $"PEAK: {peakDay.ToUpperInvariant()}  |  AVG: {NetworkUsageService.FormatBytes(dailyAvg)}/DAY",
             buckets: snapshot.DailyMonth,
             activeBucketIndex: snapshot.CurrentDay - 1,
-            isDarkTheme: true);
+            isDarkTheme: true,
+            width: 400,
+            height: 185);
 
         var todayDetails = new Details
         {
             Title = "Today (Hourly Usage)",
             Body =
-                $"![Today Hourly Usage]({todayChartUri}?--x-cmdpal-fit=fit)\n\n" +
+                $"![Today Hourly Usage]({todayChartUri})\n\n" +
                 $"**Total:** {NetworkUsageService.FormatBytes(snapshot.TotalToday)}  \n" +
                 $"**Download:** {NetworkUsageService.FormatBytes(snapshot.TotalReceivedToday)}  •  " +
                 $"**Upload:** {NetworkUsageService.FormatBytes(snapshot.TotalSentToday)}  \n" +
@@ -99,7 +103,7 @@ internal sealed partial class NetworkUsagePage : ListPage
         {
             Title = $"{monthLabel} (Daily Usage)",
             Body =
-                $"![Monthly Daily Usage]({monthChartUri}?--x-cmdpal-fit=fit)\n\n" +
+                $"![Monthly Daily Usage]({monthChartUri})\n\n" +
                 $"**Total:** {NetworkUsageService.FormatBytes(snapshot.TotalMonth)}  \n" +
                 $"**Download:** {NetworkUsageService.FormatBytes(snapshot.TotalReceivedMonth)}  •  " +
                 $"**Upload:** {NetworkUsageService.FormatBytes(snapshot.TotalSentMonth)}  \n" +
@@ -159,11 +163,13 @@ internal sealed partial class NetworkUsagePage : ListPage
 
             string adapterPeakDay = NetworkUsageService.FormatPeakDay(adapter.DailyMonth, snapshot.MonthStart);
             string adapterChartUri = NetworkChartRenderer.RenderBarChartDataUri(
-                title: $"{TruncateChartTitle(adapter.ProfileName, 16)} ({monthLabel})",
+                title: $"{TruncateChartTitle(adapter.ProfileName, 14)} ({monthLabel})",
                 subtitle: $"TODAY: {NetworkUsageService.FormatBytes(adapter.TotalToday)}  |  PEAK: {adapterPeakDay.ToUpperInvariant()}",
                 buckets: adapter.DailyMonth,
                 activeBucketIndex: snapshot.CurrentDay - 1,
-                isDarkTheme: true);
+                isDarkTheme: true,
+                width: 400,
+                height: 185);
 
             items.Add(new ListItem(_graphPage)
             {
@@ -175,7 +181,7 @@ internal sealed partial class NetworkUsagePage : ListPage
                 {
                     Title = adapter.ProfileName,
                     Body =
-                        $"![{adapter.ProfileName} Monthly Usage]({adapterChartUri}?--x-cmdpal-fit=fit)\n\n" +
+                        $"![{adapter.ProfileName} Monthly Usage]({adapterChartUri})\n\n" +
                         $"**Today:** {NetworkUsageService.FormatBytes(adapter.TotalToday)} " +
                         $"(↓ {NetworkUsageService.FormatBytes(adapter.ReceivedToday)} • ↑ {NetworkUsageService.FormatBytes(adapter.SentToday)})  \n" +
                         $"**This Month:** {NetworkUsageService.FormatBytes(adapter.TotalMonth)} " +

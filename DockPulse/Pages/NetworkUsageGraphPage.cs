@@ -16,6 +16,8 @@ internal sealed partial class NetworkUsageGraphPage : ContentPage, IDisposable
     private readonly NetworkUsageService _service;
     private readonly object _stateLock = new();
 
+    private IPage? _adapterListPage;
+
     private IContent[] _cachedContent =
     [
         new MarkdownContent("### Loading Network Usage Graphs...\nReading Windows Data Usage (SRUM) hourly and daily statistics."),
@@ -31,15 +33,35 @@ internal sealed partial class NetworkUsageGraphPage : ContentPage, IDisposable
         _service = service;
 
         Id = "com.dockpulse.page.network.graphs";
-        Name = "Usage Graphs";
-        Title = "Network Usage Graphs (Today & This Month)";
-        Icon = new IconInfo("\uE9D2");
+        Name = "Network Usage";
+        Title = "Network Data Usage (Today & This Month)";
+        Icon = new IconInfo("\uE774");
 
-        Commands =
-        [
-            new CommandContextItem(new ActionCommand("Refresh Graphs", TriggerRefresh, new IconInfo("\uE72C"))),
-            new CommandContextItem(new OpenUriCommand("Open Windows Data Usage Settings", "ms-settings:datausage", new IconInfo("\uE713"))),
-        ];
+        RebuildCommands();
+    }
+
+    public void AttachAdapterListPage(IPage adapterListPage)
+    {
+        _adapterListPage = adapterListPage;
+        RebuildCommands();
+    }
+
+    private void RebuildCommands()
+    {
+        var cmds = new List<IContextItem>();
+        if (_adapterListPage is not null)
+        {
+            cmds.Add(new CommandContextItem(_adapterListPage)
+            {
+                Title = "Adapter Details & Filter",
+                Icon = new IconInfo("\uE839"),
+            });
+        }
+
+        cmds.Add(new CommandContextItem(new ActionCommand("Refresh Network Usage", TriggerRefresh, new IconInfo("\uE72C"))));
+        cmds.Add(new CommandContextItem(new OpenUriCommand("Open Windows Data Usage Settings", "ms-settings:datausage", new IconInfo("\uE713"))));
+
+        Commands = [.. cmds];
     }
 
     public override IContent[] GetContent()
@@ -108,27 +130,28 @@ internal sealed partial class NetworkUsageGraphPage : ContentPage, IDisposable
             MaxHeight = NetworkChartRenderer.DefaultHeight,
         };
 
-        var todayHeader = new MarkdownContent(
-            $"### Today (since 00:00) — **{NetworkUsageService.FormatBytes(snapshot.TotalToday)}**\n" +
-            $"Download: **{NetworkUsageService.FormatBytes(snapshot.TotalReceivedToday)}**  •  " +
-            $"Upload: **{NetworkUsageService.FormatBytes(snapshot.TotalSentToday)}**  •  " +
-            $"Peak Hour: **{peakHour}**");
+        var todaySummary = new MarkdownContent(
+            $"**Today (since 00:00):** {NetworkUsageService.FormatBytes(snapshot.TotalToday)}  •  " +
+            $"↓ **{NetworkUsageService.FormatBytes(snapshot.TotalReceivedToday)}**  •  " +
+            $"↑ **{NetworkUsageService.FormatBytes(snapshot.TotalSentToday)}**  •  " +
+            $"Peak: **{peakHour}**");
 
-        var monthHeader = new MarkdownContent(
-            $"### This Month ({monthLabel}) — **{NetworkUsageService.FormatBytes(snapshot.TotalMonth)}**\n" +
-            $"Download: **{NetworkUsageService.FormatBytes(snapshot.TotalReceivedMonth)}**  •  " +
-            $"Upload: **{NetworkUsageService.FormatBytes(snapshot.TotalSentMonth)}**  •  " +
-            $"Daily Avg: **{NetworkUsageService.FormatBytes(dailyAvg)}**  •  " +
-            $"Peak Day: **{peakDay}**");
+        var monthSummary = new MarkdownContent(
+            $"**This Month ({monthLabel}):** {NetworkUsageService.FormatBytes(snapshot.TotalMonth)}  •  " +
+            $"↓ **{NetworkUsageService.FormatBytes(snapshot.TotalReceivedMonth)}**  •  " +
+            $"↑ **{NetworkUsageService.FormatBytes(snapshot.TotalSentMonth)}**  •  " +
+            $"Avg: **{NetworkUsageService.FormatBytes(dailyAvg)}/day**  •  " +
+            $"Peak: **{peakDay}**");
 
         var adapterSummary = new MarkdownContent(BuildAdapterSummaryMarkdown(snapshot));
 
+        // Graph placed right at the very top of the page by default
         IContent[] nextContent =
         [
-            todayHeader,
             todayImage,
-            monthHeader,
+            todaySummary,
             monthImage,
+            monthSummary,
             adapterSummary,
         ];
 

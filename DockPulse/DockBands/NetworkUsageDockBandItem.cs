@@ -20,7 +20,7 @@ internal sealed partial class NetworkUsageDockBandItem : ListItem, IDisposable
         NetworkUsageService service,
         NetworkUsagePage page,
         NetworkUsageGraphPage graphPage)
-        : base(page)
+        : base(graphPage)
     {
         _service = service;
         _page = page;
@@ -32,7 +32,7 @@ internal sealed partial class NetworkUsageDockBandItem : ListItem, IDisposable
 
         MoreCommands =
         [
-            new CommandContextItem(_graphPage) { Title = "View Usage Graphs" },
+            new CommandContextItem(_page) { Title = "Adapter Details & Filter" },
             new CommandContextItem(new ActionCommand("Refresh Network Usage", () => _ = RefreshAsync(), new IconInfo("\uE72C"))),
             new CommandContextItem(new OpenUriCommand("Data Usage Settings", "ms-settings:datausage", new IconInfo("\uE713"))),
         ];
