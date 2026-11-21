@@ -12,6 +12,7 @@ public partial class DockPulseCommandsProvider : CommandProvider
     private readonly NetworkUsageService _networkService;
 
     private readonly WirelessDevicesPage _wirelessPage;
+    private readonly NetworkUsageGraphPage _networkGraphPage;
     private readonly NetworkUsagePage _networkPage;
 
     private readonly WirelessBatteryDockBandItem _wirelessDockItem;
@@ -30,26 +31,28 @@ public partial class DockPulseCommandsProvider : CommandProvider
         _networkService = new NetworkUsageService();
 
         _wirelessPage = new WirelessDevicesPage(_wirelessService);
-        _networkPage = new NetworkUsagePage(_networkService);
+        _networkGraphPage = new NetworkUsageGraphPage(_networkService);
+        _networkPage = new NetworkUsagePage(_networkService, _networkGraphPage);
 
         _wirelessDockItem = new WirelessBatteryDockBandItem(_wirelessService, _wirelessPage);
-        _networkDockItem = new NetworkUsageDockBandItem(_networkService, _networkPage);
+        _networkDockItem = new NetworkUsageDockBandItem(_networkService, _networkPage, _networkGraphPage);
 
         _wirelessPage.OnManualRefresh = () => _ = _wirelessDockItem.RefreshAsync(forceUncached: true);
         _networkPage.OnManualRefresh = () => _ = _networkDockItem.RefreshAsync();
+        _networkGraphPage.OnManualRefresh = () => _ = _networkDockItem.RefreshAsync();
 
         _topLevelCommands =
         [
             new CommandItem(_wirelessPage)
             {
                 Title = "Wireless Device Batteries",
-                Subtitle = "View battery levels of connected Bluetooth, BLE, and Xbox devices",
+                Subtitle = "View battery levels of Bluetooth, BLE, Logitech Wireless (LIGHTSPEED/Bolt/Unifying), and Xbox devices",
                 Icon = new IconInfo("\uE702"),
             },
             new CommandItem(_networkPage)
             {
                 Title = "Network Usage (Today & This Month)",
-                Subtitle = "View network data consumption today (since midnight) and this month",
+                Subtitle = "View network data consumption and usage graphs for today (since midnight) and this month",
                 Icon = new IconInfo("\uE774"),
             },
         ];
@@ -87,6 +90,16 @@ public partial class DockPulseCommandsProvider : CommandProvider
             {
                 return item;
             }
+        }
+
+        if (_networkGraphPage.Id == id)
+        {
+            return new CommandItem(_networkGraphPage)
+            {
+                Title = "Network Usage Graphs",
+                Subtitle = "Today (Hourly) & This Month (Daily) visual usage charts",
+                Icon = new IconInfo("\uE9D2"),
+            };
         }
 
         return null;

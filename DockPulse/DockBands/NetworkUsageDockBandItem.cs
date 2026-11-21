@@ -12,14 +12,19 @@ internal sealed partial class NetworkUsageDockBandItem : ListItem, IDisposable
 {
     private readonly NetworkUsageService _service;
     private readonly NetworkUsagePage _page;
+    private readonly NetworkUsageGraphPage _graphPage;
     private readonly Timer _timer;
     private int _isRefreshing;
 
-    public NetworkUsageDockBandItem(NetworkUsageService service, NetworkUsagePage page)
+    public NetworkUsageDockBandItem(
+        NetworkUsageService service,
+        NetworkUsagePage page,
+        NetworkUsageGraphPage graphPage)
         : base(page)
     {
         _service = service;
         _page = page;
+        _graphPage = graphPage;
 
         Title = "-- GB";
         Subtitle = "Mo --";
@@ -27,6 +32,7 @@ internal sealed partial class NetworkUsageDockBandItem : ListItem, IDisposable
 
         MoreCommands =
         [
+            new CommandContextItem(_graphPage) { Title = "View Usage Graphs" },
             new CommandContextItem(new ActionCommand("Refresh Network Usage", () => _ = RefreshAsync(), new IconInfo("\uE72C"))),
             new CommandContextItem(new OpenUriCommand("Data Usage Settings", "ms-settings:datausage", new IconInfo("\uE713"))),
         ];
@@ -46,6 +52,7 @@ internal sealed partial class NetworkUsageDockBandItem : ListItem, IDisposable
         {
             var snapshot = await _service.GetUsageAsync().ConfigureAwait(false);
             _page.UpdateSnapshot(snapshot);
+            await _graphPage.UpdateSnapshotAsync(snapshot).ConfigureAwait(false);
 
             Title = NetworkUsageService.FormatBytes(snapshot.TotalToday);
             Subtitle = $"Mo {NetworkUsageService.FormatBytes(snapshot.TotalMonth)}";
@@ -65,5 +72,6 @@ internal sealed partial class NetworkUsageDockBandItem : ListItem, IDisposable
     public void Dispose()
     {
         _timer.Dispose();
+        _graphPage.Dispose();
     }
 }

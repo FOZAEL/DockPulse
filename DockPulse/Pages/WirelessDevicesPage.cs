@@ -41,7 +41,7 @@ internal sealed partial class WirelessDevicesPage : ListPage
             items.Add(new ListItem(new OpenUriCommand("Open Bluetooth Settings", "ms-settings:bluetooth", new IconInfo("\uE702")))
             {
                 Title = "No wireless devices with battery reporting found",
-                Subtitle = "Connect a Bluetooth/BLE device or Xbox controller, then refresh",
+                Subtitle = "Connect a Bluetooth/BLE device, Logitech LIGHTSPEED/Bolt/Unifying device, or Xbox controller",
                 Icon = new IconInfo("\uE702"),
             });
         }
@@ -63,10 +63,14 @@ internal sealed partial class WirelessDevicesPage : ListPage
                     tags.Add(new Tag("Low Battery"));
                 }
 
+                string subtitle = !string.IsNullOrWhiteSpace(device.DetailText)
+                    ? $"{device.ConnectionType} • {device.DetailText}"
+                    : $"{device.ConnectionType} • Battery: {device.BatteryPercent}%";
+
                 items.Add(new ListItem(new OpenUriCommand("Open Bluetooth Settings", "ms-settings:bluetooth", new IconInfo("\uE702")))
                 {
                     Title = device.Name,
-                    Subtitle = $"{device.ConnectionType} • Battery: {device.BatteryPercent}%",
+                    Subtitle = subtitle,
                     Icon = new IconInfo(WirelessBatteryService.GetDeviceGlyph(device.Kind)),
                     Tags = [.. tags],
                     MoreCommands =
@@ -80,7 +84,7 @@ internal sealed partial class WirelessDevicesPage : ListPage
         items.Add(new ListItem(new ActionCommand("Refresh Now", TriggerRefresh, new IconInfo("\uE72C")))
         {
             Title = "Refresh Wireless Battery Levels",
-            Subtitle = "Force an immediate uncached Bluetooth / GATT / XInput scan",
+            Subtitle = "Force an immediate Bluetooth, GATT, Logitech HID++, and XInput scan",
             Icon = new IconInfo("\uE72C"),
         });
 

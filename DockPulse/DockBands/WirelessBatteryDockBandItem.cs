@@ -58,7 +58,7 @@ internal sealed partial class WirelessBatteryDockBandItem : ListItem, IDisposabl
                 string extra = devices.Count > 1 ? $" (+{devices.Count - 1})" : string.Empty;
 
                 Title = $"{primary.BatteryPercent}%{extra}";
-                Subtitle = Truncate(primary.Name, 16);
+                Subtitle = Truncate(primary.Name, 18);
                 Icon = new IconInfo(WirelessBatteryService.GetBatteryGlyph(primary.BatteryPercent, primary.IsWiredOrCharging));
             }
         }
@@ -79,5 +79,6 @@ internal sealed partial class WirelessBatteryDockBandItem : ListItem, IDisposabl
     public void Dispose()
     {
         _timer.Dispose();
+        _service.Dispose();
     }
 }
