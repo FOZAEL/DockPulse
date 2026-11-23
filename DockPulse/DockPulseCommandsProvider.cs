@@ -30,7 +30,7 @@ public partial class DockPulseCommandsProvider : CommandProvider
     {
         Id = "com.dockpulse.extension";
         DisplayName = "DockPulse";
-        Icon = new IconInfo("\uE774");
+        Icon = IconHelpers.FromRelativePath("Assets\\StoreLogo.png");
 
         _wirelessService = new WirelessBatteryService();
         _networkService = new NetworkUsageService();
