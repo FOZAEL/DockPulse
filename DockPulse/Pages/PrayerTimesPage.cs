@@ -81,8 +81,6 @@ internal sealed partial class PrayerTimesPage : ContentPage, IDisposable
 
         Title = FormatFooterTitle(snapshot);
         Commands = BuildFooterCommands(snapshot);
-        RaisePropertyChanged(nameof(Title));
-        RaisePropertyChanged(nameof(Commands));
         RaiseItemsChanged(nextContent.Length);
     }
 
