@@ -17,9 +17,9 @@ internal sealed partial class PrayerRegionPickerPage : ListPage
 
         Id = "com.dockpulse.page.prayer.region";
         Name = "Select Region";
-        Title = "Select Region / City (Prayer Times)";
+        Title = "Select Region & Timezone";
         Icon = new IconInfo("\uE707");
-        PlaceholderText = "Search city or country (e.g. Kabul, Tehran, Najaf, Dubai, Makkah, London)...";
+        PlaceholderText = "Search city, country, or timezone (e.g. Kabul, UTC+04:30, Dubai, London)...";
 
         _service.ConfigurationChanged += () => RaiseItemsChanged(PrayerTimesService.Regions.Count);
     }
@@ -32,17 +32,12 @@ internal sealed partial class PrayerRegionPickerPage : ListPage
         foreach (var region in PrayerTimesService.Regions)
         {
             bool isSelected = string.Equals(region.Id, current.Id, StringComparison.OrdinalIgnoreCase);
+            string tzLabel = PrayerTimesService.GetRegionUtcOffsetLabel(region);
             string asrLabel = region.DefaultAsrSchool == AsrJuristicSchool.Hanafi ? "Hanafi" : "Standard";
 
-            var tags = new List<ITag>
-            {
-                new Tag(region.Country),
-            };
-
-            if (isSelected)
-            {
-                tags.Insert(0, new Tag("Selected"));
-            }
+            ITag[] tags = isSelected
+                ? [new Tag("Selected"), new Tag(tzLabel), new Tag(region.Country)]
+                : [new Tag(tzLabel), new Tag(region.Country)];
 
             string targetRegionId = region.Id;
             items.Add(new ListItem(new ActionCommand(
@@ -52,9 +47,9 @@ internal sealed partial class PrayerRegionPickerPage : ListPage
                 result: CommandResult.GoBack()))
             {
                 Title = region.DisplayName,
-                Subtitle = $"Default: {asrLabel} Asr • {region.Latitude:0.00}°, {region.Longitude:0.00}°",
+                Subtitle = $"{tzLabel}  •  Default: {asrLabel} Asr  •  {region.Latitude:0.00}°, {region.Longitude:0.00}°",
                 Icon = new IconInfo(isSelected ? "\uE73E" : "\uE707"),
-                Tags = [.. tags],
+                Tags = tags,
             });
         }
 

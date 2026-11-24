@@ -17,17 +17,34 @@ internal sealed partial class PrayerMethodPickerPage : ListPage
 
         Id = "com.dockpulse.page.prayer.method";
         Name = "Calculation Method";
-        Title = "Prayer Calculation Method (Sunni & Shia)";
+        Title = "Prayer Calculation Method";
         Icon = new IconInfo("\uE909");
-        PlaceholderText = "Filter Sunni or Shia calculation methods...";
+        PlaceholderText = "Filter calculation methods or Asr school...";
 
-        _service.ConfigurationChanged += () => RaiseItemsChanged(PrayerTimesService.Methods.Count);
+        _service.ConfigurationChanged += () => RaiseItemsChanged(PrayerTimesService.Methods.Count + 1);
     }
 
     public override IListItem[] GetItems()
     {
         var current = _service.SelectedMethod;
-        var items = new List<IListItem>(PrayerTimesService.Methods.Count);
+        var school = _service.SelectedAsrSchool;
+        string schoolShort = school == AsrJuristicSchool.Hanafi ? "Hanafi" : "Standard";
+
+        var items = new List<IListItem>(PrayerTimesService.Methods.Count + 1)
+        {
+            new ListItem(new ActionCommand(
+                "Toggle Asr School",
+                () => _service.ToggleAsrSchool(),
+                new IconInfo("\uE8AB"),
+                keepOpen: true))
+            {
+                Section = "Asr School",
+                Title = $"Asr School: {PrayerTimesService.FormatAsrSchoolName(school)}",
+                Subtitle = "Click to toggle between Hanafi (2x shadow) and Standard (1x shadow)",
+                Icon = new IconInfo("\uE8AB"),
+                Tags = [new Tag(schoolShort)],
+            },
+        };
 
         foreach (var method in PrayerTimesService.Methods)
         {
@@ -40,15 +57,7 @@ internal sealed partial class PrayerMethodPickerPage : ListPage
                 ? $"  •  Maghrib: {method.MaghribAngle:0.#}°"
                 : string.Empty;
 
-            var tags = new List<ITag>
-            {
-                new Tag(method.IsShia ? "Shia" : "Sunni"),
-            };
-
-            if (isSelected)
-            {
-                tags.Insert(0, new Tag("Selected"));
-            }
+            ITag[] tags = isSelected ? [new Tag("Selected")] : [];
 
             string targetMethodId = method.Id;
             items.Add(new ListItem(new ActionCommand(
@@ -57,10 +66,11 @@ internal sealed partial class PrayerMethodPickerPage : ListPage
                 new IconInfo("\uE73E"),
                 result: CommandResult.GoBack()))
             {
+                Section = "Calculation Methods",
                 Title = method.Name,
                 Subtitle = $"Fajr: {method.FajrAngle:0.#}°{maghribDesc}  •  Isha: {ishaDesc}",
                 Icon = new IconInfo(isSelected ? "\uE73E" : "\uE909"),
-                Tags = [.. tags],
+                Tags = tags,
             });
         }
 

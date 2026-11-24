@@ -2,14 +2,17 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Security;
 using Microsoft.CommandPalette.Extensions.Toolkit;
+using Windows.Data.Xml.Dom;
+using Windows.UI.Notifications;
 
 namespace DockPulse.Services;
 
 public enum AsrJuristicSchool
 {
-    Standard = 1, // Shafi'i, Maliki, Hanbali (1x shadow length)
-    Hanafi = 2,   // Hanafi (2x shadow length)
+    Standard = 1, // 1x shadow length
+    Hanafi = 2,   // 2x shadow length
 }
 
 public sealed record PrayerCalculationMethod(
@@ -21,7 +24,7 @@ public sealed record PrayerCalculationMethod(
     double IshaMinutesAfterMaghrib = 0,
     int DhuhrMinuteMargin = 1,
     double MaghribAngle = 0.833,
-    bool IsShia = false);
+    bool UsesTwilightMaghrib = false);
 
 public sealed record PrayerRegion(
     string Id,
@@ -46,17 +49,29 @@ public sealed record PrayerEntry(
 
 public sealed record PrayerScheduleSnapshot(
     DateTimeOffset RegionNow,
+    string UtcOffsetLabel,
     PrayerRegion Region,
     PrayerCalculationMethod Method,
     AsrJuristicSchool AsrSchool,
+    bool NotificationsEnabled,
     IReadOnlyList<PrayerEntry> TodayEntries,
+    PrayerEntry? ExactNowPrayer,
     string NextPrayerName,
     DateTimeOffset NextPrayerTime,
     bool NextPrayerIsTomorrow,
     TimeSpan TimeUntilNext)
 {
+    public string CardPrayerName => ExactNowPrayer?.Name ?? NextPrayerName;
+
+    public bool IsExactPrayerMinute => ExactNowPrayer is not null;
+
     public string FormatCountdownShort()
     {
+        if (ExactNowPrayer is not null)
+        {
+            return $"Now: {ExactNowPrayer.Name}";
+        }
+
         int totalMinutes = Math.Max(0, (int)Math.Ceiling(TimeUntilNext.TotalMinutes));
         if (totalMinutes <= 0)
         {
@@ -80,6 +95,11 @@ public sealed record PrayerScheduleSnapshot(
 
     public string FormatCountdownLong()
     {
+        if (ExactNowPrayer is not null)
+        {
+            return "Starting now";
+        }
+
         int totalMinutes = Math.Max(0, (int)Math.Ceiling(TimeUntilNext.TotalMinutes));
         if (totalMinutes <= 0)
         {
@@ -98,15 +118,14 @@ public sealed record PrayerScheduleSnapshot(
 }
 
 /// <summary>
-/// Offline astronomical Islamic prayer time calculator (Sunni &amp; Shia) using standard solar
-/// position equations (NOAA / Meeus) with 12 calculation conventions, Hanafi &amp; Standard
-/// Asr schools, Jafari/Tehran Maghrib angles, and high-latitude fallback.
+/// Offline astronomical prayer time calculator using standard solar position equations
+/// (NOAA / Meeus) with 12 calculation conventions, Hanafi &amp; Standard Asr schools,
+/// twilight Maghrib angles, high-latitude fallback, and Windows toast notifications.
 /// </summary>
 public sealed class PrayerTimesService
 {
     public static readonly IReadOnlyList<PrayerCalculationMethod> Methods =
     [
-        // Sunni conventions
         new("karachi", "University of Islamic Sciences, Karachi", "Karachi (18°/18°)", 18.0, 18.0),
         new("mwl", "Muslim World League", "MWL (18°/17°)", 18.0, 17.0),
         new("umm_al_qura", "Umm al-Qura University, Makkah", "Umm al-Qura (18.5°/90m)", 18.5, 0.0, IshaMinutesAfterMaghrib: 90),
@@ -117,10 +136,8 @@ public sealed class PrayerTimesService
         new("jakim", "JAKIM / MUIS / Kemenag (SE Asia)", "SE Asia (20°/18°)", 20.0, 18.0),
         new("kuwait", "Kuwait Ministry of Awqaf", "Kuwait (18°/17.5°)", 18.0, 17.5),
         new("qatar", "Qatar Awqaf", "Qatar (18°/90m)", 18.0, 0.0, IshaMinutesAfterMaghrib: 90),
-
-        // Shia conventions
-        new("jafari", "Shia Ithna-Ashari / Jafari (Leva Institute, Qum)", "Jafari (16°/4°/14°)", 16.0, 14.0, MaghribAngle: 4.0, IsShia: true),
-        new("tehran", "Institute of Geophysics, University of Tehran", "Tehran (17.7°/4.5°/14°)", 17.7, 14.0, MaghribAngle: 4.5, IsShia: true),
+        new("jafari", "Ithna-Ashari / Jafari (Leva Institute, Qum)", "Jafari (16°/4°/14°)", 16.0, 14.0, MaghribAngle: 4.0, UsesTwilightMaghrib: true),
+        new("tehran", "Institute of Geophysics, University of Tehran", "Tehran (17.7°/4.5°/14°)", 17.7, 14.0, MaghribAngle: 4.5, UsesTwilightMaghrib: true),
     ];
 
     public static readonly IReadOnlyList<PrayerRegion> Regions =
@@ -207,6 +224,8 @@ public sealed class PrayerTimesService
     private PrayerRegion _selectedRegion;
     private PrayerCalculationMethod _selectedMethod;
     private AsrJuristicSchool _selectedAsrSchool;
+    private bool _notificationsEnabled = true;
+    private string _lastNotifiedKey = string.Empty;
 
     public event Action? ConfigurationChanged;
 
@@ -254,6 +273,17 @@ public sealed class PrayerTimesService
         }
     }
 
+    public bool NotificationsEnabled
+    {
+        get
+        {
+            lock (_configLock)
+            {
+                return _notificationsEnabled;
+            }
+        }
+    }
+
     public void SelectRegion(string regionId)
     {
         var region = Regions.FirstOrDefault(r => string.Equals(r.Id, regionId, StringComparison.OrdinalIgnoreCase));
@@ -284,7 +314,7 @@ public sealed class PrayerTimesService
         lock (_configLock)
         {
             _selectedMethod = method;
-            if (method.IsShia)
+            if (method.UsesTwilightMaghrib)
             {
                 _selectedAsrSchool = AsrJuristicSchool.Standard;
             }
@@ -308,27 +338,40 @@ public sealed class PrayerTimesService
         ConfigurationChanged?.Invoke();
     }
 
+    public void ToggleNotifications()
+    {
+        lock (_configLock)
+        {
+            _notificationsEnabled = !_notificationsEnabled;
+            SaveConfigLocked();
+        }
+
+        ConfigurationChanged?.Invoke();
+    }
+
     public PrayerScheduleSnapshot GetCurrentSchedule()
     {
         PrayerRegion region;
         PrayerCalculationMethod method;
         AsrJuristicSchool asrSchool;
+        bool notificationsEnabled;
 
         lock (_configLock)
         {
             region = _selectedRegion;
             method = _selectedMethod;
             asrSchool = _selectedAsrSchool;
+            notificationsEnabled = _notificationsEnabled;
         }
 
         var tz = ResolveTimeZone(region.WindowsTimeZoneId);
         var utcNow = DateTimeOffset.UtcNow;
         var regionNow = TimeZoneInfo.ConvertTime(utcNow, tz);
+        string utcOffsetLabel = FormatUtcOffset(regionNow.Offset);
 
         var todayDate = new DateOnly(regionNow.Year, regionNow.Month, regionNow.Day);
         var todayTimes = CalculateDayTimes(todayDate, region, method, asrSchool, tz);
 
-        // Determine next obligatory Sunni prayer (Fajr, Dhuhr, Asr, Maghrib, Isha)
         int nextIdx = -1;
         int currentIdx = -1;
 
@@ -367,6 +410,7 @@ public sealed class PrayerTimesService
             nextIsTomorrow = true;
         }
 
+        PrayerEntry? exactNowPrayer = null;
         var finalEntries = new List<PrayerEntry>(todayTimes.Count);
         for (int i = 0; i < todayTimes.Count; i++)
         {
@@ -374,7 +418,17 @@ public sealed class PrayerTimesService
             bool isNext = !nextIsTomorrow && i == nextIdx;
             bool isCurrent = i == currentIdx;
             bool isPassed = raw.Time <= regionNow && !isCurrent;
-            finalEntries.Add(raw with { IsPassed = isPassed, IsCurrent = isCurrent, IsNext = isNext });
+            var finalized = raw with { IsPassed = isPassed, IsCurrent = isCurrent, IsNext = isNext };
+            finalEntries.Add(finalized);
+
+            if (finalized.IsObligatory)
+            {
+                double elapsedMinutes = (regionNow - finalized.Time).TotalMinutes;
+                if (elapsedMinutes >= 0.0 && elapsedMinutes < 1.0)
+                {
+                    exactNowPrayer = finalized;
+                }
+            }
         }
 
         var remaining = nextTime - utcNow;
@@ -385,14 +439,105 @@ public sealed class PrayerTimesService
 
         return new PrayerScheduleSnapshot(
             RegionNow: regionNow,
+            UtcOffsetLabel: utcOffsetLabel,
             Region: region,
             Method: method,
             AsrSchool: asrSchool,
+            NotificationsEnabled: notificationsEnabled,
             TodayEntries: finalEntries,
+            ExactNowPrayer: exactNowPrayer,
             NextPrayerName: nextName,
             NextPrayerTime: nextTime,
             NextPrayerIsTomorrow: nextIsTomorrow,
             TimeUntilNext: remaining);
+    }
+
+    public void CheckAndSendNotification(PrayerScheduleSnapshot snapshot)
+    {
+        if (!snapshot.NotificationsEnabled)
+        {
+            return;
+        }
+
+        foreach (var entry in snapshot.TodayEntries)
+        {
+            if (!entry.IsObligatory)
+            {
+                continue;
+            }
+
+            double elapsedMinutes = (snapshot.RegionNow - entry.Time).TotalMinutes;
+            if (elapsedMinutes < 0.0 || elapsedMinutes >= 2.0)
+            {
+                continue;
+            }
+
+            string notifyKey = $"{snapshot.Region.Id}|{entry.Time:yyyy-MM-dd}|{entry.Name}";
+            lock (_configLock)
+            {
+                if (!_notificationsEnabled || string.Equals(_lastNotifiedKey, notifyKey, StringComparison.Ordinal))
+                {
+                    return;
+                }
+
+                _lastNotifiedKey = notifyKey;
+                SaveConfigLocked();
+            }
+
+            ShowWindowsPrayerToast(entry.Name, entry.Time, snapshot.Region.DisplayName);
+            return;
+        }
+    }
+
+    public static void SendTestNotification(PrayerScheduleSnapshot snapshot)
+    {
+        ShowWindowsPrayerToast(snapshot.NextPrayerName, snapshot.NextPrayerTime, snapshot.Region.DisplayName);
+    }
+
+    private static void ShowWindowsPrayerToast(string prayerName, DateTimeOffset prayerTime, string regionDisplayName)
+    {
+        try
+        {
+            string title = SecurityElement.Escape($"{prayerName} Prayer Time — {prayerTime:HH:mm}") ?? prayerName;
+            string body = SecurityElement.Escape($"It is now time for {prayerName} in {regionDisplayName}.") ?? regionDisplayName;
+
+            string xml =
+                "<toast>" +
+                "<visual><binding template=\"ToastGeneric\">" +
+                $"<text>{title}</text>" +
+                $"<text>{body}</text>" +
+                "</binding></visual>" +
+                "<audio src=\"ms-winsoundevent:Notification.Default\"/>" +
+                "</toast>";
+
+            var doc = new XmlDocument();
+            doc.LoadXml(xml);
+
+            var toast = new ToastNotification(doc)
+            {
+                ExpirationTime = DateTimeOffset.Now.AddMinutes(30),
+            };
+
+            ToastNotificationManager.CreateToastNotifier().Show(toast);
+        }
+        catch
+        {
+            // Ignore notification errors if Windows Notifications are disabled at OS level
+        }
+    }
+
+    public static string GetRegionUtcOffsetLabel(PrayerRegion region)
+    {
+        var tz = ResolveTimeZone(region.WindowsTimeZoneId);
+        var offset = tz.GetUtcOffset(DateTimeOffset.UtcNow);
+        return FormatUtcOffset(offset);
+    }
+
+    public static string FormatUtcOffset(TimeSpan offset)
+    {
+        char sign = offset < TimeSpan.Zero ? '-' : '+';
+        TimeSpan abs = offset.Duration();
+        return $"UTC{sign}{abs.Hours:00}:{abs.Minutes:00}";
     }
 
     public static string GetPrayerGlyph(string prayerName) => prayerName switch
@@ -404,7 +549,7 @@ public sealed class PrayerTimesService
     public static string FormatAsrSchoolName(AsrJuristicSchool school) => school switch
     {
         AsrJuristicSchool.Hanafi => "Hanafi (2x shadow)",
-        _ => "Standard (Shafi'i / Maliki / Hanbali)",
+        _ => "Standard (1x shadow)",
     };
 
     private static List<PrayerEntry> CalculateDayTimes(
@@ -475,7 +620,6 @@ public sealed class PrayerTimesService
 
     private static DateTimeOffset ToDateTimeOffset(DateOnly date, double localHours, TimeSpan utcOffset)
     {
-        // Round to nearest minute; handle rare post-midnight Isha (e.g. high-latitude summer)
         double roundedHours = localHours + (0.5 / 60.0);
         int extraDays = (int)Math.Floor(roundedHours / 24.0);
         double wrapped = roundedHours - (extraDays * 24.0);
@@ -667,6 +811,15 @@ public sealed class PrayerTimesService
                 {
                     _selectedAsrSchool = parsedSchool;
                 }
+                else if (string.Equals(key, "notifications", StringComparison.OrdinalIgnoreCase) &&
+                         bool.TryParse(value, out bool parsedNotifications))
+                {
+                    _notificationsEnabled = parsedNotifications;
+                }
+                else if (string.Equals(key, "last_notified", StringComparison.OrdinalIgnoreCase))
+                {
+                    _lastNotifiedKey = value;
+                }
             }
         }
         catch
@@ -684,6 +837,8 @@ public sealed class PrayerTimesService
                 $"region={_selectedRegion.Id}",
                 $"method={_selectedMethod.Id}",
                 $"asr={_selectedAsrSchool}",
+                $"notifications={_notificationsEnabled}",
+                $"last_notified={_lastNotifiedKey}",
             ];
             File.WriteAllLines(_configPath, lines);
         }

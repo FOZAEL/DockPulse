@@ -12,16 +12,14 @@ namespace DockPulse.Pages;
 internal sealed partial class NetworkUsagePage : ListPage
 {
     private readonly NetworkUsageService _service;
-    private readonly NetworkUsageGraphPage _graphPage;
     private readonly object _itemsLock = new();
     private IListItem[] _cachedItems;
 
     public Action? OnManualRefresh { get; set; }
 
-    public NetworkUsagePage(NetworkUsageService service, NetworkUsageGraphPage graphPage)
+    public NetworkUsagePage(NetworkUsageService service)
     {
         _service = service;
-        _graphPage = graphPage;
 
         Id = "com.dockpulse.page.network";
         Name = "Network Usage";
@@ -111,7 +109,7 @@ internal sealed partial class NetworkUsagePage : ListPage
                 $"**Peak Day:** {peakDay}",
         };
 
-        items.Add(new ListItem(_graphPage)
+        items.Add(new ListItem(new OpenUriCommand("Open Data Usage Settings", "ms-settings:datausage", new IconInfo("\uE774")))
         {
             Title = $"Today (since 00:00): {NetworkUsageService.FormatBytes(snapshot.TotalToday)}",
             Subtitle = $"↓ {NetworkUsageService.FormatBytes(snapshot.TotalReceivedToday)}   •   ↑ {NetworkUsageService.FormatBytes(snapshot.TotalSentToday)}",
@@ -120,12 +118,11 @@ internal sealed partial class NetworkUsagePage : ListPage
             Details = todayDetails,
             MoreCommands =
             [
-                new CommandContextItem(new OpenUriCommand("Open Windows Data Usage Settings", "ms-settings:datausage", new IconInfo("\uE713"))),
                 new CommandContextItem(new ActionCommand("Refresh Now", TriggerRefresh, new IconInfo("\uE72C"))),
             ],
         });
 
-        items.Add(new ListItem(_graphPage)
+        items.Add(new ListItem(new OpenUriCommand("Open Data Usage Settings", "ms-settings:datausage", new IconInfo("\uE774")))
         {
             Title = $"This Month ({monthLabel}): {NetworkUsageService.FormatBytes(snapshot.TotalMonth)}",
             Subtitle = $"↓ {NetworkUsageService.FormatBytes(snapshot.TotalReceivedMonth)}   •   ↑ {NetworkUsageService.FormatBytes(snapshot.TotalSentMonth)}",
@@ -134,18 +131,8 @@ internal sealed partial class NetworkUsagePage : ListPage
             Details = monthDetails,
             MoreCommands =
             [
-                new CommandContextItem(new OpenUriCommand("Open Windows Data Usage Settings", "ms-settings:datausage", new IconInfo("\uE713"))),
                 new CommandContextItem(new ActionCommand("Refresh Now", TriggerRefresh, new IconInfo("\uE72C"))),
             ],
-        });
-
-        items.Add(new ListItem(_graphPage)
-        {
-            Title = "View Full Usage Graphs",
-            Subtitle = "Open Today (Hourly) & This Month (Daily) visual charts",
-            Icon = new IconInfo("\uE9D2"),
-            Tags = [new Tag("Graphs")],
-            Details = todayDetails,
         });
 
         foreach (var adapter in snapshot.Adapters)
@@ -171,7 +158,7 @@ internal sealed partial class NetworkUsagePage : ListPage
                 width: 400,
                 height: 185);
 
-            items.Add(new ListItem(_graphPage)
+            items.Add(new ListItem(new OpenUriCommand("Open Data Usage Settings", "ms-settings:datausage", new IconInfo("\uE774")))
             {
                 Title = adapter.ProfileName,
                 Subtitle = $"Today ↓{NetworkUsageService.FormatBytes(adapter.ReceivedToday)} ↑{NetworkUsageService.FormatBytes(adapter.SentToday)}  |  Month ↓{NetworkUsageService.FormatBytes(adapter.ReceivedMonth)} ↑{NetworkUsageService.FormatBytes(adapter.SentMonth)}",
@@ -190,7 +177,7 @@ internal sealed partial class NetworkUsagePage : ListPage
                 },
                 MoreCommands =
                 [
-                    new CommandContextItem(new OpenUriCommand("Open Windows Data Usage Settings", "ms-settings:datausage", new IconInfo("\uE713"))),
+                    new CommandContextItem(new ActionCommand("Refresh Now", TriggerRefresh, new IconInfo("\uE72C"))),
                 ],
             });
         }
@@ -235,7 +222,6 @@ internal sealed partial class NetworkUsagePage : ListPage
         {
             var latest = await _service.GetUsageAsync().ConfigureAwait(false);
             UpdateSnapshot(latest);
-            await _graphPage.UpdateSnapshotAsync(latest).ConfigureAwait(false);
         }
         finally
         {

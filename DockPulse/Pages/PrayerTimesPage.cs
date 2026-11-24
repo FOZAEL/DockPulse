@@ -1,20 +1,25 @@
 using System;
 using System.Collections.Generic;
-using System.Globalization;
+using System.Text.Json;
+using System.Threading.Tasks;
 using DockPulse.Commands;
 using DockPulse.Services;
 using Microsoft.CommandPalette.Extensions;
 using Microsoft.CommandPalette.Extensions.Toolkit;
+using Windows.Storage.Streams;
 
 namespace DockPulse.Pages;
 
-internal sealed partial class PrayerTimesPage : ListPage
+internal sealed partial class PrayerTimesPage : ContentPage, IDisposable
 {
     private readonly PrayerTimesService _service;
     private readonly PrayerRegionPickerPage _regionPickerPage;
     private readonly PrayerMethodPickerPage _methodPickerPage;
+    private readonly object _stateLock = new();
 
-    private PrayerScheduleSnapshot _snapshot;
+    private IContent[] _cachedContent;
+    private List<InMemoryRandomAccessStream> _activeStreams = [];
+    private List<InMemoryRandomAccessStream> _retiringStreams = [];
 
     public Action? OnManualRefresh { get; set; }
 
@@ -26,128 +31,135 @@ internal sealed partial class PrayerTimesPage : ListPage
         _service = service;
         _regionPickerPage = regionPickerPage;
         _methodPickerPage = methodPickerPage;
-        _snapshot = _service.GetCurrentSchedule();
+
+        var initial = _service.GetCurrentSchedule();
 
         Id = "com.dockpulse.page.prayer";
         Name = "Prayer Times";
-        Title = "Prayer Times (Sunni & Shia)";
+        Title = FormatFooterTitle(initial);
         Icon = new IconInfo("\uE708");
-        PlaceholderText = "Filter prayers or settings...";
+
+        byte[] initialPng = PrayerChartRenderer.RenderScheduleCardPng(initial);
+        string initialDataUri = $"data:image/png;base64,{Convert.ToBase64String(initialPng)}";
+        _cachedContent = BuildContentArray(new MarkdownContent($"![Prayer Schedule]({initialDataUri})"), initial);
+        Commands = BuildFooterCommands(initial);
+
+        _ = UpdateSnapshotAsync(initial);
     }
 
-    public void UpdateSnapshot(PrayerScheduleSnapshot snapshot)
+    public override IContent[] GetContent()
     {
-        _snapshot = snapshot;
-        RaiseItemsChanged(snapshot.TodayEntries.Count + 5);
+        lock (_stateLock)
+        {
+            return _cachedContent;
+        }
     }
 
-    public override IListItem[] GetItems()
+    public async Task UpdateSnapshotAsync(PrayerScheduleSnapshot snapshot)
     {
-        var snapshot = _snapshot;
-        var items = new List<IListItem>();
+        byte[] cardPng = PrayerChartRenderer.RenderScheduleCardPng(snapshot);
+        var (cardStream, cardIcon) = await CreatePngIconDataAsync(cardPng).ConfigureAwait(false);
 
-        string tomorrowSuffix = snapshot.NextPrayerIsTomorrow ? " (Tomorrow)" : string.Empty;
-        items.Add(new ListItem(_regionPickerPage)
+        var scheduleCard = new ImageContent(new IconInfo(cardIcon, cardIcon))
         {
-            Title = $"Next: {snapshot.NextPrayerName} — {snapshot.FormatCountdownShort()}",
-            Subtitle = $"Starts at {snapshot.NextPrayerTime:HH:mm}{tomorrowSuffix}  •  {snapshot.Region.DisplayName}",
-            Icon = new IconInfo(PrayerTimesService.GetPrayerGlyph(snapshot.NextPrayerName)),
-            Tags =
-            [
-                new Tag($"{snapshot.NextPrayerTime:HH:mm}"),
-                new Tag(snapshot.Region.City),
-            ],
-            MoreCommands =
-            [
-                new CommandContextItem(_regionPickerPage) { Title = "Change Region / City" },
-                new CommandContextItem(new ActionCommand("Toggle Asr School (Hanafi / Standard)", () => _service.ToggleAsrSchool(), new IconInfo("\uE8AB"))),
-                new CommandContextItem(_methodPickerPage) { Title = "Change Calculation Method" },
-            ],
-        });
+            MaxWidth = PrayerChartRenderer.DefaultWidth,
+            MaxHeight = PrayerChartRenderer.DefaultHeight,
+        };
 
-        foreach (var entry in snapshot.TodayEntries)
+        IContent[] nextContent = BuildContentArray(scheduleCard, snapshot);
+
+        List<InMemoryRandomAccessStream> toDispose;
+        lock (_stateLock)
         {
-            var tags = new List<ITag>
-            {
-                new Tag(entry.Time.ToString("HH:mm", CultureInfo.InvariantCulture)),
-            };
-
-            string statusText;
-            if (!entry.IsObligatory)
-            {
-                if (string.Equals(entry.Name, "Sunset", StringComparison.Ordinal))
-                {
-                    tags.Add(new Tag("Sunset"));
-                    statusText = entry.IsPassed ? "Sun has set" : "Maghrib follows after twilight";
-                }
-                else
-                {
-                    tags.Add(new Tag("Sunrise"));
-                    statusText = entry.IsPassed ? "Fajr window ended" : "Marks end of Fajr";
-                }
-            }
-            else if (entry.IsNext)
-            {
-                tags.Add(new Tag("Next"));
-                statusText = $"Starts {snapshot.FormatCountdownLong()}";
-            }
-            else if (entry.IsCurrent)
-            {
-                tags.Add(new Tag("Current"));
-                statusText = "Current prayer time";
-            }
-            else if (entry.IsPassed)
-            {
-                tags.Add(new Tag("Passed"));
-                statusText = "Completed";
-            }
-            else
-            {
-                statusText = "Upcoming";
-            }
-
-            items.Add(new ListItem(new CopyTextCommand($"{entry.Name}: {entry.Time:HH:mm} ({snapshot.Region.City})"))
-            {
-                Title = $"{entry.Name}  —  {entry.Time:HH:mm}",
-                Subtitle = statusText,
-                Icon = new IconInfo(PrayerTimesService.GetPrayerGlyph(entry.Name)),
-                Tags = [.. tags],
-            });
+            toDispose = _retiringStreams;
+            _retiringStreams = _activeStreams;
+            _activeStreams = [cardStream];
+            _cachedContent = nextContent;
         }
 
-        items.Add(new ListItem(_regionPickerPage)
-        {
-            Title = $"Change Region / City ({snapshot.Region.DisplayName})",
-            Subtitle = "Choose from 60+ cities worldwide (auto-sets local defaults)",
-            Icon = new IconInfo("\uE707"),
-            Tags = [new Tag("Region")],
-        });
+        DisposeStreams(toDispose);
 
-        items.Add(new ListItem(new ActionCommand("Toggle Asr School", () => _service.ToggleAsrSchool(), new IconInfo("\uE8AB")))
-        {
-            Title = $"Asr School: {PrayerTimesService.FormatAsrSchoolName(snapshot.AsrSchool)}",
-            Subtitle = "Click to switch between Hanafi (2x shadow) and Standard (Shafi'i / Maliki / Hanbali / Jafari)",
-            Icon = new IconInfo("\uE8AB"),
-            Tags = [new Tag(snapshot.AsrSchool == AsrJuristicSchool.Hanafi ? "Hanafi" : "Standard")],
-        });
-
-        items.Add(new ListItem(_methodPickerPage)
-        {
-            Title = $"Calculation Method: {snapshot.Method.ShortName}",
-            Subtitle = $"{(snapshot.Method.IsShia ? "Shia" : "Sunni")} • {snapshot.Method.Name}",
-            Icon = new IconInfo("\uE909"),
-            Tags = [new Tag(snapshot.Method.IsShia ? "Shia" : "Sunni")],
-        });
-
-        items.Add(new ListItem(new ActionCommand("Refresh Prayer Times", TriggerRefresh, new IconInfo("\uE72C")))
-        {
-            Title = "Refresh Prayer Times",
-            Subtitle = $"Local region time: {snapshot.RegionNow:ddd, MMM d • HH:mm}",
-            Icon = new IconInfo("\uE72C"),
-        });
-
-        return [.. items];
+        Title = FormatFooterTitle(snapshot);
+        Commands = BuildFooterCommands(snapshot);
+        RaisePropertyChanged(nameof(Title));
+        RaisePropertyChanged(nameof(Commands));
+        RaiseItemsChanged(nextContent.Length);
     }
+
+    private IContent[] BuildContentArray(IContent scheduleVisual, PrayerScheduleSnapshot snapshot)
+    {
+        string asrShort = snapshot.AsrSchool == AsrJuristicSchool.Hanafi ? "Hanafi" : "Standard";
+        bool notifOn = snapshot.NotificationsEnabled;
+
+        return
+        [
+            scheduleVisual,
+            new MarkdownContent("**Configuration**"),
+            new PrayerConfigRowForm(
+                title: $"Region & Timezone: {snapshot.Region.DisplayName}",
+                subtitle: $"{snapshot.UtcOffsetLabel}  •  Choose from 60+ cities & timezones worldwide",
+                tagText: snapshot.UtcOffsetLabel,
+                onSelect: () => CommandResult.GoToPage(new GoToPageArgs { PageId = _regionPickerPage.Id })),
+            new PrayerConfigRowForm(
+                title: $"Calculation Method: {snapshot.Method.ShortName}",
+                subtitle: $"{snapshot.Method.Name}  •  Asr School: {asrShort}",
+                tagText: asrShort,
+                onSelect: () => CommandResult.GoToPage(new GoToPageArgs { PageId = _methodPickerPage.Id })),
+            new PrayerConfigRowForm(
+                title: $"Prayer Notifications: {(notifOn ? "On" : "Off")}",
+                subtitle: "Send a Windows notification when each prayer time is reached",
+                tagText: notifOn ? "Enabled" : "Muted",
+                onSelect: () =>
+                {
+                    _service.ToggleNotifications();
+                    return CommandResult.KeepOpen();
+                }),
+            new PrayerConfigRowForm(
+                title: "Refresh Prayer Times",
+                subtitle: $"Local region time: {snapshot.RegionNow:ddd, MMM d • HH:mm} ({snapshot.UtcOffsetLabel})",
+                tagText: null,
+                onSelect: () =>
+                {
+                    TriggerRefresh();
+                    return CommandResult.KeepOpen();
+                }),
+        ];
+    }
+
+    private IContextItem[] BuildFooterCommands(PrayerScheduleSnapshot snapshot)
+    {
+        string asrShort = snapshot.AsrSchool == AsrJuristicSchool.Hanafi ? "Hanafi" : "Standard";
+        bool notifOn = snapshot.NotificationsEnabled;
+
+        return
+        [
+            new CommandContextItem(_regionPickerPage)
+            {
+                Title = $"Change Region & Timezone ({snapshot.Region.City} • {snapshot.UtcOffsetLabel})",
+                Icon = new IconInfo("\uE707"),
+            },
+            new CommandContextItem(_methodPickerPage)
+            {
+                Title = $"Change Calculation Method ({snapshot.Method.ShortName} • {asrShort})",
+                Icon = new IconInfo("\uE909"),
+            },
+            new CommandContextItem(new ActionCommand(
+                $"Prayer Notifications ({(notifOn ? "On" : "Off")})",
+                () => _service.ToggleNotifications(),
+                new IconInfo(notifOn ? "\uEA8F" : "\uE7ED"))),
+            new CommandContextItem(new ActionCommand(
+                "Send Test Windows Notification",
+                () => PrayerTimesService.SendTestNotification(snapshot),
+                new IconInfo("\uEA8F"))),
+            new CommandContextItem(new ActionCommand(
+                "Refresh Prayer Times",
+                TriggerRefresh,
+                new IconInfo("\uE72C"))),
+        ];
+    }
+
+    private static string FormatFooterTitle(PrayerScheduleSnapshot snapshot) =>
+        $"Prayer Times  •  {snapshot.Region.City} ({snapshot.UtcOffsetLabel})  •  {snapshot.Method.ShortName}";
 
     private void TriggerRefresh()
     {
@@ -157,6 +169,141 @@ internal sealed partial class PrayerTimesPage : ListPage
             return;
         }
 
-        UpdateSnapshot(_service.GetCurrentSchedule());
+        _ = UpdateSnapshotAsync(_service.GetCurrentSchedule());
     }
+
+    private static async Task<(InMemoryRandomAccessStream Stream, IconData IconData)> CreatePngIconDataAsync(byte[] pngBytes)
+    {
+        var stream = new InMemoryRandomAccessStream();
+        using (var writer = new DataWriter(stream.GetOutputStreamAt(0)))
+        {
+            writer.WriteBytes(pngBytes);
+            await writer.StoreAsync();
+            await writer.FlushAsync();
+            writer.DetachStream();
+        }
+
+        stream.Seek(0);
+        return (stream, new IconData(RandomAccessStreamReference.CreateFromStream(stream)));
+    }
+
+    private static void DisposeStreams(List<InMemoryRandomAccessStream> streams)
+    {
+        foreach (var stream in streams)
+        {
+            try
+            {
+                stream.Dispose();
+            }
+            catch
+            {
+                // Ignore disposal errors
+            }
+        }
+    }
+
+    public void Dispose()
+    {
+        List<InMemoryRandomAccessStream> active;
+        List<InMemoryRandomAccessStream> retiring;
+        lock (_stateLock)
+        {
+            active = _activeStreams;
+            retiring = _retiringStreams;
+            _activeStreams = [];
+            _retiringStreams = [];
+        }
+
+        DisposeStreams(active);
+        DisposeStreams(retiring);
+    }
+}
+
+internal sealed partial class PrayerConfigRowForm : FormContent
+{
+    private readonly Func<CommandResult> _onSelect;
+
+    public PrayerConfigRowForm(
+        string title,
+        string subtitle,
+        string? tagText,
+        Func<CommandResult> onSelect)
+    {
+        _onSelect = onSelect;
+
+        string escTitle = JsonEncodedText.Encode(title).ToString();
+        string escSubtitle = JsonEncodedText.Encode(subtitle).ToString();
+
+        string tagColumnJson = string.IsNullOrWhiteSpace(tagText)
+            ? string.Empty
+            : $$"""
+              ,
+              {
+                  "type": "Column",
+                  "width": "auto",
+                  "verticalContentAlignment": "Center",
+                  "items": [
+                      {
+                          "type": "Container",
+                          "style": "emphasis",
+                          "items": [
+                              {
+                                  "type": "TextBlock",
+                                  "text": "{{JsonEncodedText.Encode(tagText).ToString()}}",
+                                  "size": "Small",
+                                  "isSubtle": true
+                              }
+                          ]
+                      }
+                  ]
+              }
+              """;
+
+        TemplateJson = $$"""
+        {
+            "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
+            "type": "AdaptiveCard",
+            "version": "1.5",
+            "body": [
+                {
+                    "type": "Container",
+                    "selectAction": {
+                        "type": "Action.Submit",
+                        "title": "{{escTitle}}"
+                    },
+                    "items": [
+                        {
+                            "type": "ColumnSet",
+                            "columns": [
+                                {
+                                    "type": "Column",
+                                    "width": "stretch",
+                                    "verticalContentAlignment": "Center",
+                                    "items": [
+                                        {
+                                            "type": "TextBlock",
+                                            "text": "{{escTitle}}",
+                                            "weight": "Bolder",
+                                            "wrap": true
+                                        },
+                                        {
+                                            "type": "TextBlock",
+                                            "text": "{{escSubtitle}}",
+                                            "size": "Small",
+                                            "isSubtle": true,
+                                            "spacing": "None",
+                                            "wrap": true
+                                        }
+                                    ]
+                                }{{tagColumnJson}}
+                            ]
+                        }
+                    ]
+                }
+            ]
+        }
+        """;
+    }
+
+    public override CommandResult SubmitForm(string payload) => _onSelect();
 }

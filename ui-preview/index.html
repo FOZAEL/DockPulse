@@ -1,0 +1,1487 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DockPulse UI Preview</title>
+<!--
+  DockPulse UI preview (approximate). Double-click this file to open it in a browser; no build needed.
+
+  - Texts, tags, icons and layout mirror DockBands/*.cs, Pages/*.cs and Services/NetworkChartRenderer.cs.
+  - All numbers are fake: see the MOCK DATA section in the script. "Scenario" switches between data sets.
+  - PowerToys Command Palette draws the real UI, so spacing and fonts here are close, not exact.
+  - Icons use the Windows "Segoe Fluent Icons" font with the same glyph codes as the C# IconInfo values.
+
+  Workflow for UI changes: edit this file first, review it in the browser, then change the C# to match.
+-->
+<style>
+  :root {
+    --desk-a: #dbe6f6; --desk-b: #a9c1e8; --desk-c: #eef2f9;
+    --surface: rgba(249, 249, 249, .95);
+    --stroke: rgba(0, 0, 0, .08); --stroke-strong: rgba(0, 0, 0, .15);
+    --text: #1b1b1b; --text-2: rgba(0, 0, 0, .62); --text-3: rgba(0, 0, 0, .45);
+    --row-hover: rgba(0, 0, 0, .035); --row-sel: rgba(0, 0, 0, .065);
+    --accent: #005fb8;
+    --tag-bg: rgba(0, 0, 0, .035); --tag-stroke: rgba(0, 0, 0, .1);
+    --dock: rgba(243, 243, 243, .88); --menu: #fbfbfb; --kbd: rgba(0, 0, 0, .06);
+    --toolbar: #ffffff; --input: rgba(255, 255, 255, .8);
+    --shadow: 0 18px 50px rgba(0, 0, 0, .18), 0 2px 8px rgba(0, 0, 0, .08);
+    --md-table: rgba(0, 0, 0, .03);
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --desk-a: #0d1b36; --desk-b: #1e2f57; --desk-c: #0b0d14;
+      --surface: rgba(32, 32, 32, .95);
+      --stroke: rgba(255, 255, 255, .08); --stroke-strong: rgba(255, 255, 255, .15);
+      --text: #ffffff; --text-2: rgba(255, 255, 255, .72); --text-3: rgba(255, 255, 255, .5);
+      --row-hover: rgba(255, 255, 255, .04); --row-sel: rgba(255, 255, 255, .075);
+      --accent: #60cdff;
+      --tag-bg: rgba(255, 255, 255, .05); --tag-stroke: rgba(255, 255, 255, .1);
+      --dock: rgba(32, 32, 32, .84); --menu: #2c2c2c; --kbd: rgba(255, 255, 255, .08);
+      --toolbar: #1c1c1c; --input: rgba(255, 255, 255, .05);
+      --shadow: 0 18px 50px rgba(0, 0, 0, .55), 0 2px 8px rgba(0, 0, 0, .3);
+      --md-table: rgba(255, 255, 255, .03);
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --desk-a: #0d1b36; --desk-b: #1e2f57; --desk-c: #0b0d14;
+    --surface: rgba(32, 32, 32, .95);
+    --stroke: rgba(255, 255, 255, .08); --stroke-strong: rgba(255, 255, 255, .15);
+    --text: #ffffff; --text-2: rgba(255, 255, 255, .72); --text-3: rgba(255, 255, 255, .5);
+    --row-hover: rgba(255, 255, 255, .04); --row-sel: rgba(255, 255, 255, .075);
+    --accent: #60cdff;
+    --tag-bg: rgba(255, 255, 255, .05); --tag-stroke: rgba(255, 255, 255, .1);
+    --dock: rgba(32, 32, 32, .84); --menu: #2c2c2c; --kbd: rgba(255, 255, 255, .08);
+    --toolbar: #1c1c1c; --input: rgba(255, 255, 255, .05);
+    --shadow: 0 18px 50px rgba(0, 0, 0, .55), 0 2px 8px rgba(0, 0, 0, .3);
+    --md-table: rgba(255, 255, 255, .03);
+    color-scheme: dark;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body {
+    background: var(--desk-c);
+    color: var(--text);
+    font: 14px/1.4 "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+    display: flex; flex-direction: column;
+  }
+  .ic {
+    font-family: "Segoe Fluent Icons", "Segoe MDL2 Assets";
+    font-style: normal; font-weight: normal; line-height: 1;
+    display: inline-flex; align-items: center; justify-content: center;
+  }
+  button { font: inherit; color: inherit; }
+
+  /* ---------- preview toolbar (not part of DockPulse) ---------- */
+  .toolbar {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 10px 18px;
+    padding: 10px 16px; background: var(--toolbar);
+    border-bottom: 1px solid var(--stroke);
+  }
+  .brand { font-weight: 600; display: flex; align-items: center; gap: 8px; }
+  .badge {
+    font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 999px;
+    background: var(--tag-bg); border: 1px solid var(--tag-stroke); color: var(--text-2);
+  }
+  .controls { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; margin-left: auto; }
+  .controls label { display: flex; align-items: center; gap: 6px; color: var(--text-2); font-size: 13px; }
+  .controls select, .controls input {
+    font: inherit; font-size: 13px; color: var(--text);
+    background: var(--input); border: 1px solid var(--stroke-strong); border-radius: 6px; padding: 4px 8px;
+  }
+  .seg { display: inline-flex; border: 1px solid var(--stroke-strong); border-radius: 6px; overflow: hidden; }
+  .seg button {
+    border: 0; background: transparent; padding: 4px 10px; font-size: 13px; cursor: pointer; color: var(--text-2);
+  }
+  .seg button[aria-pressed="true"] { background: var(--row-sel); color: var(--text); font-weight: 600; }
+
+  /* ---------- desktop + dock ---------- */
+  .desktop {
+    flex: 1; position: relative; overflow: auto;
+    background:
+      radial-gradient(1200px 600px at 15% 0%, var(--desk-b), transparent 60%),
+      radial-gradient(900px 500px at 100% 100%, var(--desk-a), transparent 60%),
+      var(--desk-c);
+    padding: 0 16px 24px;
+  }
+  .dock {
+    position: sticky; top: 0; z-index: 2;
+    display: flex; gap: 4px; align-items: stretch; flex-wrap: wrap;
+    margin: 0 -16px 28px; padding: 4px 10px;
+    background: var(--dock); backdrop-filter: blur(24px);
+    border-bottom: 1px solid var(--stroke);
+  }
+  .band {
+    display: flex; align-items: center; gap: 8px;
+    border: 0; background: transparent; border-radius: 6px;
+    padding: 4px 10px; cursor: pointer; text-align: left; min-height: 40px;
+  }
+  .band:hover { background: var(--row-hover); }
+  .band:active, .band.open { background: var(--row-sel); }
+  .band .ic { font-size: 16px; width: 20px; }
+  .band .t { font-size: 12px; font-weight: 600; white-space: nowrap; }
+  .band .s { font-size: 11px; color: var(--text-2); white-space: nowrap; }
+
+  /* ---------- command palette window ---------- */
+  .palette {
+    width: min(860px, 100%); height: 540px; margin: 0 auto;
+    display: flex; flex-direction: column;
+    background: var(--surface); backdrop-filter: blur(30px);
+    border: 1px solid var(--stroke-strong); border-radius: 8px;
+    box-shadow: var(--shadow); overflow: hidden;
+  }
+  .pal-top {
+    display: flex; align-items: center; gap: 8px; padding: 10px 12px;
+    border-bottom: 1px solid var(--stroke);
+  }
+  .pal-top .lead {
+    width: 32px; height: 32px; border: 0; border-radius: 4px; background: transparent;
+    font-size: 14px; color: var(--text-2); flex: none;
+  }
+  .pal-top button.lead { cursor: pointer; }
+  .pal-top button.lead:hover { background: var(--row-hover); color: var(--text); }
+  .pal-top input {
+    flex: 1; min-width: 0; font: inherit; font-size: 16px; color: var(--text);
+    background: transparent; border: 0; outline: none; padding: 6px 4px;
+  }
+  .pal-top input::placeholder { color: var(--text-3); }
+  .pal-top input:disabled { cursor: default; }
+  .pal-body { flex: 1; min-height: 0; display: flex; }
+  .list { flex: 1; min-width: 0; overflow-y: auto; padding: 4px; }
+  .list.with-details { flex: 0 0 52%; border-right: 1px solid var(--stroke); }
+  .row {
+    position: relative; display: flex; align-items: center; gap: 12px;
+    padding: 8px 12px; border-radius: 4px; cursor: default; min-height: 52px;
+  }
+  .row:hover { background: var(--row-hover); }
+  .row.sel { background: var(--row-sel); }
+  .row.sel::before {
+    content: ""; position: absolute; left: 0; top: 50%; width: 3px; height: 16px;
+    margin-top: -8px; border-radius: 2px; background: var(--accent);
+  }
+  .row > .ic { font-size: 18px; width: 24px; flex: none; color: var(--text); }
+  .row .txt { flex: 1; min-width: 0; }
+  .row .ti { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .row .su { font-size: 12px; color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .tags { display: flex; gap: 4px; flex: none; flex-wrap: nowrap; }
+  .tag {
+    font-size: 11.5px; padding: 1px 7px; border-radius: 4px; white-space: nowrap;
+    background: var(--tag-bg); border: 1px solid var(--tag-stroke); color: var(--text-2);
+  }
+  .empty { padding: 32px; text-align: center; color: var(--text-3); }
+  .sec-hdr {
+    font-size: 12px; font-weight: 600; color: var(--text-2);
+    padding: 10px 12px 4px; margin-top: 6px; border-top: 1px solid var(--stroke);
+  }
+  .sec-hdr:first-child { margin-top: 0; border-top: 0; padding-top: 6px; }
+
+  .details { flex: 1; min-width: 0; overflow-y: auto; padding: 16px 18px; }
+  .details h2 { font-size: 18px; font-weight: 600; margin: 0 0 10px; }
+
+  .content { flex: 1; overflow-y: auto; padding: 16px 20px; display: flex; flex-direction: column; gap: 10px; }
+  .chart { display: block; width: 100%; height: auto; }
+  .prayer-card-wrap { padding: 6px 8px 4px; }
+  .prayer-card { display: block; width: 100%; height: auto; border-radius: 12px; cursor: pointer; }
+
+  .md { font-size: 13.5px; color: var(--text); }
+  .md p { margin: 0 0 10px; }
+  .md h3 { font-size: 15px; font-weight: 600; margin: 8px 0 6px; }
+  .md em { color: var(--text-2); }
+  .md table { border-collapse: collapse; width: 100%; margin: 0 0 10px; font-size: 13px; }
+  .md th, .md td { padding: 5px 8px; border-bottom: 1px solid var(--stroke); }
+  .md th { font-weight: 600; background: var(--md-table); }
+
+  .pal-bar {
+    display: flex; align-items: center; gap: 8px; padding: 6px 10px 6px 14px;
+    border-top: 1px solid var(--stroke); font-size: 12.5px; color: var(--text-2); min-height: 44px;
+  }
+  .bar-left { display: flex; align-items: center; gap: 8px; min-width: 0; flex: 1; }
+  .bar-left span:last-child { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .bar-right { display: flex; align-items: center; gap: 4px; flex: none; }
+  .bar-btn {
+    display: inline-flex; align-items: center; gap: 6px; border: 0; background: transparent;
+    padding: 5px 8px; border-radius: 4px; cursor: pointer; color: var(--text);
+  }
+  .bar-btn:hover { background: var(--row-hover); }
+  .bar-btn[hidden] { display: none; }
+  kbd {
+    font: inherit; font-size: 11px; padding: 1px 6px; border-radius: 4px;
+    background: var(--kbd); border: 1px solid var(--stroke); color: var(--text-2);
+  }
+  .sep { width: 1px; height: 18px; background: var(--stroke-strong); margin: 0 4px; }
+
+  /* ---------- context menu + toast ---------- */
+  .menu {
+    position: fixed; z-index: 20; min-width: 240px; max-width: 360px; padding: 4px;
+    background: var(--menu); border: 1px solid var(--stroke-strong); border-radius: 8px;
+    box-shadow: var(--shadow);
+  }
+  .menu[hidden] { display: none; }
+  .menu button {
+    display: flex; align-items: center; gap: 10px; width: 100%; text-align: left;
+    border: 0; background: transparent; padding: 7px 10px; border-radius: 4px; cursor: pointer; font-size: 13px;
+  }
+  .menu button:hover, .menu button.sel { background: var(--row-sel); }
+  .menu .ic { width: 16px; font-size: 14px; color: var(--text-2); }
+  .toast {
+    position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); z-index: 30;
+    background: var(--menu); color: var(--text); border: 1px solid var(--stroke-strong);
+    border-radius: 6px; padding: 8px 14px; font-size: 13px; box-shadow: var(--shadow); max-width: calc(100% - 32px);
+  }
+  .toast[hidden] { display: none; }
+  .win-notif {
+    position: fixed; right: 20px; bottom: 20px; z-index: 35; width: 340px;
+    background: var(--menu); color: var(--text); border: 1px solid var(--stroke-strong);
+    border-radius: 8px; padding: 12px 14px; box-shadow: var(--shadow);
+  }
+  .win-notif[hidden] { display: none; }
+  .win-notif-top { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text-2); margin-bottom: 6px; }
+  .win-notif-top button { margin-left: auto; border: 0; background: transparent; cursor: pointer; color: var(--text-2); font-size: 15px; padding: 0 4px; border-radius: 4px; }
+  .win-notif-top button:hover { background: var(--row-hover); color: var(--text); }
+  .win-notif-title { font-weight: 600; font-size: 14px; margin-bottom: 2px; }
+  .win-notif-body { font-size: 12.5px; color: var(--text-2); }
+  .hint { text-align: center; color: var(--text-2); font-size: 12.5px; margin: 14px 0 0; }
+
+  @media (max-width: 640px) {
+    .palette { height: 600px; }
+    .pal-body.split { flex-direction: column; }
+    .list.with-details { flex: 0 0 50%; border-right: 0; border-bottom: 1px solid var(--stroke); }
+    .tags .tag:nth-child(n+2) { display: none; }
+  }
+</style>
+</head>
+<body>
+<header class="toolbar">
+  <div class="brand">DockPulse UI Preview <span class="badge">approximate · fake data</span></div>
+  <div class="controls">
+    <div class="seg" id="themeSeg" role="group" aria-label="Theme">
+      <button data-theme-btn="auto" aria-pressed="true">Auto</button>
+      <button data-theme-btn="light" aria-pressed="false">Light</button>
+      <button data-theme-btn="dark" aria-pressed="false">Dark</button>
+    </div>
+    <label>Scenario
+      <select id="scenario">
+        <option value="normal">Normal</option>
+        <option value="prayertime">Prayer time reached (notification)</option>
+        <option value="tehran">Tehran / Jafari method</option>
+        <option value="low">Low battery + charging</option>
+        <option value="nodevices">No wireless devices</option>
+        <option value="notraffic">No network traffic yet</option>
+      </select>
+    </label>
+    <label>Clock <input type="time" id="clock" value="14:11"></label>
+  </div>
+</header>
+
+<main class="desktop">
+  <nav class="dock" id="dock" aria-label="Dock"></nav>
+
+  <section class="palette" id="palette" aria-label="Command Palette">
+    <div class="pal-top" id="palTop"></div>
+    <div class="pal-body" id="palBody"></div>
+    <div class="pal-bar">
+      <div class="bar-left"><span class="ic" id="barIcon"></span><span id="barTitle"></span></div>
+      <div class="bar-right">
+        <button class="bar-btn" id="primaryBtn"><span id="primaryName"></span><kbd>↵</kbd></button>
+        <span class="sep" id="barSep"></span>
+        <button class="bar-btn" id="actionsBtn">Actions <kbd>Ctrl</kbd><kbd>K</kbd></button>
+      </div>
+    </div>
+  </section>
+
+  <p class="hint">Click a Dock band to open its page · right-click a band for its menu · click selects a row, double-click or Enter runs it · Esc goes back</p>
+</main>
+
+<div class="menu" id="menu" role="menu" hidden></div>
+<div class="toast" id="toast" role="status" hidden></div>
+<div class="win-notif" id="winNotif" role="alert" hidden>
+  <div class="win-notif-top">
+    <span class="ic" id="wnIcon"></span>
+    <span>DockPulse · Windows Notification</span>
+    <button id="wnClose" title="Dismiss" aria-label="Dismiss">✕</button>
+  </div>
+  <div class="win-notif-title" id="wnTitle"></div>
+  <div class="win-notif-body" id="wnBody"></div>
+</div>
+
+<script>
+"use strict";
+
+/* =====================================================================
+   Formatting helpers: ports of the C# formatters, so texts match
+   ===================================================================== */
+const KB = 1024, MB = KB * 1024, GB = MB * 1024;
+const pad2 = n => String(n).padStart(2, "0");
+const hhmm = mins => pad2(Math.floor(((mins % 1440) + 1440) % 1440 / 60)) + ":" + pad2(((mins % 60) + 60) % 60);
+const deg = x => String(Number(x.toFixed(1)));               // C# "0.#"
+const fixed2 = x => x.toFixed(2);                              // C# "0.00"
+
+// NetworkUsageService.FormatBytes
+function formatBytes(bytes) {
+  const units = ["B", "KB", "MB", "GB", "TB"];
+  let v = bytes, i = 0;
+  while (v >= 1024 && i < units.length - 1) { v /= 1024; i++; }
+  return v.toFixed(i >= 3 ? 2 : (i >= 2 ? 1 : 0)) + " " + units[i];
+}
+// NetworkChartRenderer.FormatShortAxis
+function formatShortAxis(bytes) {
+  if (bytes === 0) return "0";
+  const units = ["B", "KB", "MB", "GB", "TB"];
+  let v = bytes, i = 0;
+  while (v >= 1024 && i < units.length - 1) { v /= 1024; i++; }
+  const d = v >= 100 ? 0 : (Math.abs(v - Math.round(v)) < 0.05 ? 0 : 1);
+  return v.toFixed(d) + " " + units[i];
+}
+// NetworkChartRenderer.ComputeNiceCeiling
+function niceCeiling(max) {
+  if (max === 0) return 10 * MB;
+  let unit = KB;
+  if (max >= GB * 1024) unit = GB * 1024; else if (max >= GB) unit = GB; else if (max >= MB) unit = MB;
+  const inUnits = max / unit;
+  const mag = Math.pow(10, Math.floor(Math.log10(Math.max(inUnits, 0.1))));
+  const n = inUnits / mag;
+  const nice = n <= 1 ? 1 : n <= 1.5 ? 1.5 : n <= 2 ? 2 : n <= 2.5 ? 2.5 : n <= 4 ? 4 : n <= 5 ? 5 : n <= 8 ? 8 : 10;
+  return Math.ceil(nice * mag * unit);
+}
+function formatPeakHour(hourly) {
+  let best = -1, bestTotal = 0;
+  hourly.forEach((b, i) => { const t = b.rx + b.tx; if (t > bestTotal) { bestTotal = t; best = i; } });
+  return best >= 0 ? `${pad2(best)}:00 (${formatBytes(bestTotal)})` : "No traffic yet";
+}
+function formatPeakDay(daily, monthAbbr) {
+  let best = -1, bestTotal = 0;
+  daily.forEach((b, i) => { const t = b.rx + b.tx; if (t > bestTotal) { bestTotal = t; best = i; } });
+  return best >= 0 ? `${monthAbbr} ${best + 1} (${formatBytes(bestTotal)})` : "No traffic yet";
+}
+// WirelessBatteryService glyphs
+function batteryGlyph(pct, charging) {
+  if (charging) return "";
+  if (pct >= 95) return ""; if (pct >= 85) return ""; if (pct >= 75) return "";
+  if (pct >= 65) return ""; if (pct >= 55) return ""; if (pct >= 45) return "";
+  if (pct >= 35) return ""; if (pct >= 25) return ""; if (pct >= 15) return "";
+  if (pct >= 5) return ""; return "";
+}
+const deviceGlyph = kind => ({ Mouse: "", Keyboard: "", Audio: "", Controller: "" }[kind] || "");
+const prayerGlyph = name => ["Dhuhr", "Asr", "Sunrise", "Sunset"].includes(name) ? "" : "";
+const truncate = (s, max) => s.length <= max ? s : s.slice(0, max - 1) + "…";
+const truncateChartTitle = (s, max) => s.length <= max ? s : s.slice(0, max).trimEnd();
+
+/* =====================================================================
+   MOCK DATA: edit freely. Nothing here is real.
+   ===================================================================== */
+const MOCK_DATE = { year: 2026, month: 10 /* 0-based: November */, day: 23 };
+
+const WIRELESS_SCENARIOS = {
+  normal: [
+    { name: "PRO X2 SUPERSTRIKE", kind: "Mouse", pct: 78, charging: false, conn: "Logitech LIGHTSPEED" },
+    { name: "AirPods Pro 3", kind: "Audio", pct: 85, charging: false, conn: "Apple BLE", detail: "L: 85% • R: 80% • Case: 60%" },
+    { name: "Xbox Wireless Controller", kind: "Controller", pct: 66, charging: false, conn: "XInput (Wireless)" },
+  ],
+  low: [
+    { name: "PRO X2 SUPERSTRIKE", kind: "Mouse", pct: 12, charging: false, conn: "Logitech LIGHTSPEED" },
+    { name: "AirPods Pro 3", kind: "Audio", pct: 40, charging: false, conn: "Apple BLE", detail: "L: 40% • R: 38% • Case: 60%⚡" },
+    { name: "Xbox Wireless Controller", kind: "Controller", pct: 100, charging: true, conn: "XInput (Wired)" },
+  ],
+  nodevices: [],
+};
+
+const METHODS = [
+  { id: "karachi", name: "University of Islamic Sciences, Karachi", short: "Karachi (18°/18°)", fajr: 18, isha: 18 },
+  { id: "mwl", name: "Muslim World League", short: "MWL (18°/17°)", fajr: 18, isha: 17 },
+  { id: "umm_al_qura", name: "Umm al-Qura University, Makkah", short: "Umm al-Qura (18.5°/90m)", fajr: 18.5, isha: 0, ishaMin: 90 },
+  { id: "dubai", name: "Dubai / UAE (IACAD)", short: "Dubai (18.2°/18.2°)", fajr: 18.2, isha: 18.2 },
+  { id: "egypt", name: "Egyptian General Authority of Survey", short: "Egypt (19.5°/17.5°)", fajr: 19.5, isha: 17.5 },
+  { id: "isna", name: "Islamic Society of North America", short: "ISNA (15°/15°)", fajr: 15, isha: 15 },
+  { id: "diyanet", name: "Diyanet Isleri Baskanligi (Turkey)", short: "Diyanet (18°/17°)", fajr: 18, isha: 17 },
+  { id: "jakim", name: "JAKIM / MUIS / Kemenag (SE Asia)", short: "SE Asia (20°/18°)", fajr: 20, isha: 18 },
+  { id: "kuwait", name: "Kuwait Ministry of Awqaf", short: "Kuwait (18°/17.5°)", fajr: 18, isha: 17.5 },
+  { id: "qatar", name: "Qatar Awqaf", short: "Qatar (18°/90m)", fajr: 18, isha: 0, ishaMin: 90 },
+  { id: "jafari", name: "Ithna-Ashari / Jafari (Leva Institute, Qum)", short: "Jafari (16°/4°/14°)", fajr: 16, isha: 14, maghrib: 4, twilightMaghrib: true },
+  { id: "tehran", name: "Institute of Geophysics, University of Tehran", short: "Tehran (17.7°/4.5°/14°)", fajr: 17.7, isha: 14, maghrib: 4.5, twilightMaghrib: true },
+];
+
+// A sample of the 61 regions in PrayerTimesService.Regions (including UTC timezone label)
+const REGIONS = [
+  ["kabul", "Kabul", "Afghanistan", 34.5553, 69.2075, "UTC+04:30", "karachi", "Hanafi"],
+  ["herat", "Herat", "Afghanistan", 34.3529, 62.2040, "UTC+04:30", "karachi", "Hanafi"],
+  ["mazar", "Mazar-i-Sharif", "Afghanistan", 36.7090, 67.1109, "UTC+04:30", "karachi", "Hanafi"],
+  ["kandahar", "Kandahar", "Afghanistan", 31.6289, 65.7372, "UTC+04:30", "karachi", "Hanafi"],
+  ["jalalabad", "Jalalabad", "Afghanistan", 34.4265, 70.4515, "UTC+04:30", "karachi", "Hanafi"],
+  ["makkah", "Makkah", "Saudi Arabia", 21.4225, 39.8262, "UTC+03:00", "umm_al_qura", "Standard"],
+  ["madinah", "Madinah", "Saudi Arabia", 24.4672, 39.6111, "UTC+03:00", "umm_al_qura", "Standard"],
+  ["riyadh", "Riyadh", "Saudi Arabia", 24.7136, 46.6753, "UTC+03:00", "umm_al_qura", "Standard"],
+  ["dubai", "Dubai", "UAE", 25.2048, 55.2708, "UTC+04:00", "dubai", "Standard"],
+  ["doha", "Doha", "Qatar", 25.2854, 51.5310, "UTC+03:00", "qatar", "Standard"],
+  ["kuwait", "Kuwait City", "Kuwait", 29.3759, 47.9774, "UTC+03:00", "kuwait", "Standard"],
+  ["baghdad", "Baghdad", "Iraq", 33.3152, 44.3661, "UTC+03:00", "mwl", "Standard"],
+  ["najaf", "Najaf", "Iraq", 31.9960, 44.3148, "UTC+03:00", "jafari", "Standard"],
+  ["karbala", "Karbala", "Iraq", 32.6160, 44.0249, "UTC+03:00", "jafari", "Standard"],
+  ["tehran", "Tehran", "Iran", 35.6892, 51.3890, "UTC+03:30", "tehran", "Standard"],
+  ["mashhad", "Mashhad", "Iran", 36.2605, 59.6168, "UTC+03:30", "tehran", "Standard"],
+  ["qom", "Qom", "Iran", 34.6416, 50.8746, "UTC+03:30", "jafari", "Standard"],
+  ["islamabad", "Islamabad", "Pakistan", 33.6844, 73.0479, "UTC+05:00", "karachi", "Hanafi"],
+  ["london", "London", "United Kingdom", 51.5074, -0.1278, "UTC+00:00", "mwl", "Standard"],
+  ["newyork", "New York", "USA", 40.7128, -74.0060, "UTC-05:00", "isna", "Standard"],
+].map(([id, city, country, lat, lon, tz, method, asr]) => ({ id, city, country, lat, lon, tz, method, asr, display: `${city}, ${country}` }));
+
+// Fake prayer times (minutes after midnight). Iran/Iraq regions use the "west" profile, the rest use "kabul".
+const T = s => { const [h, m] = s.split(":").map(Number); return h * 60 + m; };
+const TIME_PROFILES = {
+  kabul: { fajr: T("05:33"), sunrise: T("06:59"), dhuhr: T("11:58"), asrStd: T("14:22"), asrHan: T("15:01"), sunset: T("16:56"), ishaStd: T("18:22"), ishaTwi: T("18:06") },
+  west:  { fajr: T("05:20"), sunrise: T("06:48"), dhuhr: T("11:53"), asrStd: T("14:47"), asrHan: T("15:32"), sunset: T("16:58"), ishaStd: T("18:20"), ishaTwi: T("18:12") },
+};
+const profileFor = region => (region.country === "Iran" || region.country === "Iraq") ? TIME_PROFILES.west : TIME_PROFILES.kabul;
+
+function seeded(seed) {
+  return () => {
+    seed |= 0; seed = seed + 0x6D2B79F5 | 0;
+    let t = Math.imul(seed ^ seed >>> 15, 1 | seed);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+}
+
+/* =====================================================================
+   App state
+   ===================================================================== */
+const state = {
+  theme: "auto",
+  scenario: "normal",
+  clock: T("14:11"),
+  prayer: { regionId: "kabul", methodId: "karachi", asr: "Hanafi", notifications: true },
+  stack: ["home"],
+  filter: "",
+  sel: 0,
+};
+
+function nowDate() {
+  return new Date(MOCK_DATE.year, MOCK_DATE.month, MOCK_DATE.day, Math.floor(state.clock / 60), state.clock % 60, 0);
+}
+const isDark = () => state.theme === "dark" || (state.theme === "auto" && matchMedia("(prefers-color-scheme: dark)").matches);
+
+/* =====================================================================
+   Snapshots built from mock data (shapes follow the C# snapshots)
+   ===================================================================== */
+function buildNetwork() {
+  const now = nowDate();
+  const curHour = now.getHours(), minute = now.getMinutes(), curDay = now.getDate();
+  const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+  const none = state.scenario === "notraffic";
+  const rnd = seeded(7);
+
+  const hourly = [];
+  for (let h = 0; h < 24; h++) {
+    const a = rnd(), b = rnd();
+    let total = 0;
+    if (!none && h <= curHour) {
+      total = (h >= 8 ? 0.25 + a * 1.1 : 0.02 + a * 0.12) * GB;
+      if (h === curHour) total *= Math.max(0.05, minute / 60);
+    }
+    const rx = Math.round(total * (0.84 + b * 0.08));
+    hourly.push({ label: pad2(h), rx, tx: Math.round(total) - rx });
+  }
+  const todayRx = hourly.reduce((s, x) => s + x.rx, 0), todayTx = hourly.reduce((s, x) => s + x.tx, 0);
+
+  const daily = [];
+  for (let d = 1; d <= daysInMonth; d++) {
+    const a = rnd(), b = rnd();
+    let rx = 0, tx = 0;
+    if (!none && d < curDay) {
+      const total = (1.3 + a * 2.4) * GB;
+      rx = Math.round(total * (0.84 + b * 0.08)); tx = Math.round(total) - rx;
+    } else if (d === curDay) { rx = todayRx; tx = todayTx; }
+    daily.push({ label: String(d), rx, tx });
+  }
+  const monthRx = daily.reduce((s, x) => s + x.rx, 0), monthTx = daily.reduce((s, x) => s + x.tx, 0);
+
+  const adapters = none ? [] : [
+    { name: "HomeNet-5G", active: true, share: 0.86 },
+    { name: "Ethernet", active: false, share: 0.14 },
+  ].map(ad => {
+    const days = daily.map((x, i) => {
+      const share = (i + 1 === curDay) ? (ad.active ? 1 : 0) : ad.share;
+      return { label: x.label, rx: Math.round(x.rx * share), tx: Math.round(x.tx * share) };
+    });
+    const today = days[curDay - 1];
+    const rxM = days.reduce((s, x) => s + x.rx, 0), txM = days.reduce((s, x) => s + x.tx, 0);
+    return {
+      name: ad.name, active: ad.active, daily: days,
+      rxToday: today.rx, txToday: today.tx, totalToday: today.rx + today.tx,
+      rxMonth: rxM, txMonth: txM, totalMonth: rxM + txM,
+    };
+  });
+
+  const updated = new Date(now.getTime() - 83 * 1000);
+  return {
+    hourly, daily, curHour, curDay, adapters,
+    monthAbbr: now.toLocaleString("en-US", { month: "short" }),
+    monthLabel: now.toLocaleString("en-US", { month: "short" }) + " " + now.getFullYear(),
+    rxToday: todayRx, txToday: todayTx, totalToday: todayRx + todayTx,
+    rxMonth: monthRx, txMonth: monthTx, totalMonth: monthRx + monthTx,
+    updatedAt: `${pad2(updated.getHours())}:${pad2(updated.getMinutes())}:${pad2(updated.getSeconds())}`,
+  };
+}
+
+function buildPrayer() {
+  const region = REGIONS.find(r => r.id === state.prayer.regionId);
+  const method = METHODS.find(m => m.id === state.prayer.methodId);
+  const school = state.prayer.asr;
+  const p = profileFor(region);
+  const now = state.clock;
+  const asrT = school === "Hanafi" ? p.asrHan : p.asrStd;
+  const maghrib = method.twilightMaghrib ? p.sunset + 19 : p.sunset;
+  const isha = method.ishaMin ? p.sunset + method.ishaMin : (method.twilightMaghrib ? p.ishaTwi : p.ishaStd);
+  const entries = [
+    { name: "Fajr", t: p.fajr, obligatory: true },
+    { name: "Sunrise", t: p.sunrise, obligatory: false },
+    { name: "Dhuhr", t: p.dhuhr, obligatory: true },
+    { name: "Asr", t: asrT, obligatory: true },
+    ...(method.twilightMaghrib ? [{ name: "Sunset", t: p.sunset, obligatory: false }] : []),
+    { name: "Maghrib", t: maghrib, obligatory: true },
+    { name: "Isha", t: isha, obligatory: true },
+  ];
+  const obligatory = entries.filter(e => e.obligatory);
+  let next = obligatory.find(e => e.t > now);
+  let tomorrow = false;
+  if (!next) { next = obligatory[0]; tomorrow = true; }
+  const current = [...obligatory].reverse().find(e => e.t <= now);
+  for (const e of entries) {
+    e.isPassed = e.t <= now;
+    e.isNext = !tomorrow && e === next;
+    e.isCurrent = e === current;
+  }
+  const exactNowPrayer = obligatory.find(e => e.t === now);
+  const until = (tomorrow ? next.t + 1440 : next.t) - now;
+  const cardPrayerName = exactNowPrayer ? exactNowPrayer.name : next.name;
+  const cardLabel = exactNowPrayer ? "Prayer Time" : "Time Left";
+  const cardPill = exactNowPrayer ? `Now • ${hhmm(exactNowPrayer.t)}` : `${Math.floor(until / 60)} Hour ${until % 60} min`;
+  const milestones = [
+    { key: "fajr", name: "Fajr", t: p.fajr },
+    { key: "sunrise", name: "Sunrise", t: p.sunrise, arrow: "up" },
+    { key: "dhuhr", name: "Dhuhr", t: p.dhuhr },
+    { key: "asr", name: "Asr", t: asrT },
+    { key: "maghrib", name: "Maghrib", t: maghrib, arrow: "down" },
+    { key: "isha", name: "Isha", t: isha },
+  ];
+  const d = nowDate();
+  return {
+    region, method, school, entries, next, tomorrow, now, until,
+    sunriseT: p.sunrise, sunsetT: p.sunset, maghribT: maghrib,
+    cardPrayerName, cardLabel, cardPill, milestones,
+    countdownShort: exactNowPrayer ? `Now: ${exactNowPrayer.name}`
+      : until < 60 ? `${until}m to ${next.name}`
+      : (until % 60 === 0 ? `${Math.floor(until / 60)}h to ${next.name}` : `${Math.floor(until / 60)}h ${until % 60}m to ${next.name}`),
+    countdownLong: until <= 0 ? "Starting now"
+      : until < 60 ? `in ${until}m`
+      : (until % 60 === 0 ? `in ${Math.floor(until / 60)}h` : `in ${Math.floor(until / 60)}h ${until % 60}m`),
+    regionNow: `${d.toLocaleString("en-US", { weekday: "short" })}, ${d.toLocaleString("en-US", { month: "short" })} ${d.getDate()} • ${hhmm(now)}`,
+  };
+}
+
+const devices = () => WIRELESS_SCENARIOS[state.scenario] || WIRELESS_SCENARIOS.normal;
+
+/* =====================================================================
+   Commands (mock behaviour: settings links and refreshes only show a toast)
+   ===================================================================== */
+const go = page => ({ page });
+const uri = (name, u) => ({ name, run: () => toast(`Would open ${u}`) });
+const refresh = name => ({ name, run: () => toast(`${name}: re-read mock data`) });
+const toggleAsr = name => ({ name, run: () => { state.prayer.asr = state.prayer.asr === "Hanafi" ? "Standard" : "Hanafi"; toast(`Asr School: ${state.prayer.asr}`); } });
+const toggleNotif = name => ({ name, run: () => { state.prayer.notifications = !state.prayer.notifications; if (!state.prayer.notifications) hideWinNotif(); toast(`Prayer Notifications: ${state.prayer.notifications ? "On" : "Off"}`); } });
+
+/* =====================================================================
+   Pages: one function per C# page, same titles, subtitles, tags and icons
+   ===================================================================== */
+const PAGES = {
+  home() {
+    return {
+      kind: "list", name: "Home", title: "Command Palette", icon: "",
+      placeholder: "Search for apps and commands...",
+      items: [
+        { icon: "", title: "Wireless Device Batteries", subtitle: "View battery levels of Bluetooth, BLE, AirPods, Logitech LIGHTSPEED/Bolt/Unifying, and Xbox devices", tags: ["DockPulse"], cmd: { name: "Wireless Devices", ...go("wireless") } },
+        { icon: "", title: "Network Usage (Today & This Month)", subtitle: "View network data consumption and usage graphs for today (since midnight) and this month", tags: ["DockPulse"], cmd: { name: "Network Usage", ...go("network") } },
+        { icon: "", title: "Prayer Times", subtitle: "Countdown to next prayer time with selectable regions, calculation methods, and notifications", tags: ["DockPulse"], cmd: { name: "Prayer Times", ...go("prayer") } },
+      ],
+    };
+  },
+
+  wireless() {
+    const list = devices();
+    const items = [];
+    if (list.length === 0) {
+      items.push({ icon: "", title: "No wireless devices with battery reporting found", subtitle: "Connect a Bluetooth/BLE device, Logitech LIGHTSPEED/Bolt/Unifying device, or Xbox controller", cmd: uri("Open Bluetooth Settings", "ms-settings:bluetooth") });
+    } else {
+      for (const d of list) {
+        const tags = [`${d.pct}%`];
+        if (d.charging) tags.push("Wired / Charging"); else if (d.pct <= 20) tags.push("Low Battery");
+        items.push({
+          icon: deviceGlyph(d.kind), title: d.name, tags,
+          subtitle: d.detail ? `${d.conn} • ${d.detail}` : `${d.conn} • Battery: ${d.pct}%`,
+          cmd: uri("Open Bluetooth Settings", "ms-settings:bluetooth"),
+          more: [{ icon: "", ...refresh("Refresh Battery Levels") }],
+        });
+      }
+    }
+    items.push({ icon: "", title: "Refresh Wireless Battery Levels", subtitle: "Force an immediate Bluetooth, GATT, Logitech HID++, and XInput scan", cmd: refresh("Refresh Now") });
+    items.push({ icon: "", title: "Open Windows Bluetooth & Devices Settings", subtitle: "Manage paired devices in Windows Settings", cmd: uri("Open Bluetooth Settings", "ms-settings:bluetooth") });
+    return { kind: "list", name: "Wireless Devices", title: "Wireless Device Batteries", icon: "", placeholder: "Filter wireless devices...", items };
+  },
+
+  network() {
+    const s = buildNetwork();
+    const peakHour = formatPeakHour(s.hourly), peakDay = formatPeakDay(s.daily, s.monthAbbr);
+    const avg = Math.floor(s.totalMonth / Math.max(1, s.curDay));
+    // Details charts are rendered with isDarkTheme: true in NetworkUsagePage.cs, in both themes
+    const small = { dark: true, w: 400, h: 185 };
+    const charts = {
+      today: { title: "Today Hourly", subtitle: `SINCE 00:00  |  PEAK: ${peakHour.toUpperCase()}`, buckets: s.hourly, active: s.curHour, ...small },
+      month: { title: `${s.monthLabel} Daily`, subtitle: `PEAK: ${peakDay.toUpperCase()}  |  AVG: ${formatBytes(avg)}/DAY`, buckets: s.daily, active: s.curDay - 1, ...small },
+    };
+    const todayDetails = {
+      title: "Today (Hourly Usage)",
+      body: `![Today Hourly Usage](chart:today)\n\n**Total:** ${formatBytes(s.totalToday)}  \n**Download:** ${formatBytes(s.rxToday)}  •  **Upload:** ${formatBytes(s.txToday)}  \n**Peak Hour:** ${peakHour}  \n_Updated at ${s.updatedAt}_`,
+    };
+    const monthDetails = {
+      title: `${s.monthLabel} (Daily Usage)`,
+      body: `![Monthly Daily Usage](chart:month)\n\n**Total:** ${formatBytes(s.totalMonth)}  \n**Download:** ${formatBytes(s.rxMonth)}  •  **Upload:** ${formatBytes(s.txMonth)}  \n**Daily Average:** ${formatBytes(avg)}  •  **Peak Day:** ${peakDay}`,
+    };
+    const openDataSettings = { icon: "", ...uri("Open Data Usage Settings", "ms-settings:datausage") };
+    const rowMore = [
+      { icon: "", ...refresh("Refresh Now") },
+    ];
+    const items = [
+      { icon: "", title: `Today (since 00:00): ${formatBytes(s.totalToday)}`, subtitle: `↓ ${formatBytes(s.rxToday)}   •   ↑ ${formatBytes(s.txToday)}`, tags: ["Today"], details: todayDetails, cmd: openDataSettings, more: rowMore },
+      { icon: "", title: `This Month (${s.monthLabel}): ${formatBytes(s.totalMonth)}`, subtitle: `↓ ${formatBytes(s.rxMonth)}   •   ↑ ${formatBytes(s.txMonth)}`, tags: ["Month"], details: monthDetails, cmd: openDataSettings, more: rowMore },
+    ];
+    s.adapters.forEach((a, i) => {
+      const key = "adapter" + i;
+      const aPeak = formatPeakDay(a.daily, s.monthAbbr);
+      charts[key] = { title: `${truncateChartTitle(a.name, 14)} (${s.monthLabel})`, subtitle: `TODAY: ${formatBytes(a.totalToday)}  |  PEAK: ${aPeak.toUpperCase()}`, buckets: a.daily, active: s.curDay - 1, ...small };
+      const tags = [`Today: ${formatBytes(a.totalToday)}`, `Mo: ${formatBytes(a.totalMonth)}`];
+      if (a.active) tags.unshift("Active");
+      items.push({
+        icon: a.active ? "" : "", title: a.name, tags, cmd: openDataSettings,
+        subtitle: `Today ↓${formatBytes(a.rxToday)} ↑${formatBytes(a.txToday)}  |  Month ↓${formatBytes(a.rxMonth)} ↑${formatBytes(a.txMonth)}`,
+        details: {
+          title: a.name,
+          body: `![${a.name} Monthly Usage](chart:${key})\n\n**Today:** ${formatBytes(a.totalToday)} (↓ ${formatBytes(a.rxToday)} • ↑ ${formatBytes(a.txToday)})  \n**This Month:** ${formatBytes(a.totalMonth)} (↓ ${formatBytes(a.rxMonth)} • ↑ ${formatBytes(a.txMonth)})  \n**Peak Day:** ${aPeak}`,
+        },
+        more: rowMore,
+      });
+    });
+    items.push({ icon: "", title: "Refresh Network Usage", subtitle: `Last updated at ${s.updatedAt}`, details: todayDetails, cmd: refresh("Refresh Now") });
+    items.push({ icon: "", title: "Open Windows Data Usage Settings", subtitle: "View per-app usage breakdown in Windows Settings", details: monthDetails, cmd: uri("Open Windows Data Usage", "ms-settings:datausage") });
+    return { kind: "list", name: "Network Usage", title: "Network Data Usage (Today & This Month)", icon: "", placeholder: "Filter network adapters...", showDetails: true, charts, items };
+  },
+
+  prayer() {
+    const p = buildPrayer();
+    const notifOn = state.prayer.notifications;
+    const footerActions = [
+      { icon: "", name: `Change Region & Timezone (${p.region.city} • ${p.region.tz})`, ...go("region") },
+      { icon: "", name: `Change Calculation Method (${p.method.short} • ${p.school})`, ...go("method") },
+      { icon: "", ...toggleNotif(`Prayer Notifications (${notifOn ? "On" : "Off"})`) },
+      { icon: "", ...refresh("Refresh Prayer Times") },
+    ];
+    const items = [
+      {
+        section: "Configuration",
+        icon: "",
+        title: `Region & Timezone: ${p.region.display}`,
+        subtitle: `${p.region.tz}  •  Choose from 60+ cities & timezones worldwide`,
+        tags: [p.region.tz],
+        cmd: { name: "Change Region & Timezone", ...go("region") },
+        more: footerActions,
+      },
+      {
+        section: "Configuration",
+        icon: "",
+        title: `Calculation Method: ${p.method.short}`,
+        subtitle: `${p.method.name}  •  Asr School: ${p.school}`,
+        tags: [p.school],
+        cmd: { name: "Calculation Method", ...go("method") },
+        more: footerActions,
+      },
+      {
+        section: "Configuration",
+        icon: notifOn ? "" : "",
+        title: `Prayer Notifications: ${notifOn ? "On" : "Off"}`,
+        subtitle: "Send a Windows notification when each prayer time is reached",
+        tags: [notifOn ? "Enabled" : "Muted"],
+        cmd: toggleNotif("Toggle Notifications"),
+        more: [
+          { icon: "", name: "Send Test Windows Notification", run: () => showWinNotif(p.next.name, hhmm(p.next.t), p.region.display) },
+          ...footerActions,
+        ],
+      },
+      {
+        section: "Configuration",
+        icon: "",
+        title: "Refresh Prayer Times",
+        subtitle: `Local region time: ${p.regionNow} (${p.region.tz})`,
+        cmd: refresh("Refresh Prayer Times"),
+        more: footerActions,
+      },
+    ];
+    return {
+      kind: "list",
+      name: "Prayer Times",
+      title: `Prayer Times  •  ${p.region.city} (${p.region.tz})  •  ${p.method.short}`,
+      icon: "",
+      placeholder: "Filter settings...",
+      headerCard: p,
+      items,
+    };
+  },
+
+  region() {
+    const items = REGIONS.map(r => {
+      const sel = r.id === state.prayer.regionId;
+      return {
+        icon: sel ? "" : "", title: r.display,
+        subtitle: `${r.tz}  •  Default: ${r.asr} Asr  •  ${fixed2(r.lat)}°, ${fixed2(r.lon)}°`,
+        tags: sel ? ["Selected", r.tz, r.country] : [r.tz, r.country],
+        cmd: { name: "Select Region", back: true, run: () => { state.prayer = { ...state.prayer, regionId: r.id, methodId: r.method, asr: r.asr }; } },
+      };
+    });
+    return { kind: "list", name: "Select Region", title: "Select Region & Timezone", icon: "", placeholder: "Search city, country, or timezone (e.g. Kabul, UTC+04:30, Dubai, London)...", items };
+  },
+
+  method() {
+    const school = state.prayer.asr;
+    const schoolItem = {
+      section: "Asr School",
+      icon: "",
+      title: `Asr School: ${school === "Hanafi" ? "Hanafi (2x shadow)" : "Standard (1x shadow)"}`,
+      subtitle: "Click to toggle between Hanafi (2x shadow) and Standard (1x shadow)",
+      tags: [school],
+      cmd: toggleAsr("Toggle Asr School"),
+    };
+    const methodItems = METHODS.map(m => {
+      const sel = m.id === state.prayer.methodId;
+      const ishaDesc = m.ishaMin > 0 ? `${m.ishaMin} min after Maghrib` : `${deg(m.isha)}°`;
+      const maghribDesc = (m.maghrib || 0.833) > 0.834 ? `  •  Maghrib: ${deg(m.maghrib)}°` : "";
+      return {
+        section: "Calculation Methods",
+        icon: sel ? "" : "", title: m.name,
+        subtitle: `Fajr: ${deg(m.fajr)}°${maghribDesc}  •  Isha: ${ishaDesc}`,
+        tags: sel ? ["Selected"] : [],
+        cmd: { name: "Select Method", back: true, run: () => { state.prayer.methodId = m.id; if (m.twilightMaghrib) state.prayer.asr = "Standard"; } },
+      };
+    });
+    return { kind: "list", name: "Calculation Method", title: "Prayer Calculation Method", icon: "", placeholder: "Filter calculation methods or Asr school...", items: [schoolItem, ...methodItems] };
+  },
+};
+
+/* =====================================================================
+   Dock bands (DockBands/*.cs)
+   ===================================================================== */
+function dockBands() {
+  const list = devices();
+  const wireless = list.length === 0
+    ? { icon: "", title: "No BT", subtitle: "Wireless" }
+    : { icon: batteryGlyph(list[0].pct, list[0].charging), title: `${list[0].pct}%${list.length > 1 ? ` (+${list.length - 1})` : ""}`, subtitle: truncate(list[0].name, 18) };
+  const net = buildNetwork();
+  const pr = buildPrayer();
+  return [
+    { label: "Wireless Battery", page: "wireless", ...wireless, more: [
+      { icon: "", ...refresh("Refresh Batteries") },
+      { icon: "", ...uri("Bluetooth Settings", "ms-settings:bluetooth") },
+    ] },
+    { label: "Network Usage", page: "network", icon: "", title: formatBytes(net.totalToday), subtitle: `Mo ${formatBytes(net.totalMonth)}`, more: [
+      { icon: "", ...refresh("Refresh Network Usage") },
+      { icon: "", ...uri("Data Usage Settings", "ms-settings:datausage") },
+    ] },
+    { label: "Next Prayer Time", page: "prayer", icon: prayerGlyph(pr.next.name), title: pr.countdownShort, subtitle: `${hhmm(pr.next.t)} • ${pr.region.city}`, more: [
+      { icon: "", name: "Change Region & Timezone", ...go("region") },
+      { icon: "", name: "Change Calculation Method", ...go("method") },
+      { icon: "", ...toggleNotif(`Prayer Notifications (${state.prayer.notifications ? "On" : "Off"})`) },
+      { icon: "", ...refresh("Refresh Prayer Times") },
+    ] },
+  ];
+}
+
+/* =====================================================================
+   Chart renderer: port of NetworkChartRenderer.RenderBarChartPng
+   ===================================================================== */
+const PALETTES = {
+  dark: { cardBg: [28, 32, 40], cardBorder: [52, 59, 74], grid: [44, 50, 64], axis: [68, 76, 94], trackElapsed: [36, 41, 52], trackFuture: [31, 35, 44], text1: [241, 245, 249], text2: [156, 168, 188], down: [56, 189, 248], downHi: [125, 211, 252], up: [167, 139, 250], upHi: [196, 181, 253], marker: [56, 189, 248] },
+  light: { cardBg: [248, 250, 252], cardBorder: [218, 226, 236], grid: [226, 232, 240], axis: [196, 206, 220], trackElapsed: [235, 240, 246], trackFuture: [242, 245, 249], text1: [15, 23, 42], text2: [100, 116, 139], down: [2, 132, 199], downHi: [14, 165, 233], up: [124, 58, 237], upHi: [139, 92, 246], marker: [2, 132, 199] },
+};
+const rgb = c => `rgb(${c[0]},${c[1]},${c[2]})`;
+const FONT1 = '600 9px "Cascadia Mono", Consolas, "Courier New", monospace';   // pixel font, scale 1
+const FONT2 = '700 15px "Cascadia Mono", Consolas, "Courier New", monospace';  // pixel font, scale 2
+
+function shouldDrawXLabel(i, count) {
+  if (count <= 12) return true;
+  if (count === 24) return [0, 4, 8, 12, 16, 20, 23].includes(i);
+  const day = i + 1;
+  return day === 1 || day === count || (day % 5 === 0 && (count - day) >= 2);
+}
+
+function drawChart(cv, spec) {
+  const w = spec.w || 600, h = spec.h || 260, P = spec.dark ? PALETTES.dark : PALETTES.light;
+  const dpr = Math.max(1, window.devicePixelRatio || 1);
+  cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr);
+  cv.style.maxWidth = w + "px";
+  const c = cv.getContext("2d");
+  c.setTransform(dpr, 0, 0, dpr, 0, 0);
+  c.textBaseline = "top";
+  const box = (x, y, bw, bh, r, color) => { c.beginPath(); c.roundRect(x, y, bw, bh, r); c.fillStyle = rgb(color); c.fill(); };
+
+  c.beginPath(); c.roundRect(0.5, 0.5, w - 1, h - 1, 12);
+  c.fillStyle = rgb(P.cardBg); c.fill(); c.strokeStyle = rgb(P.cardBorder); c.lineWidth = 1; c.stroke();
+
+  let totalDown = 0, totalUp = 0, maxBucket = 0;
+  for (const b of spec.buckets) { totalDown += b.rx; totalUp += b.tx; maxBucket = Math.max(maxBucket, b.rx + b.tx); }
+
+  const padL = 18, padR = 18;
+  const upperTitle = spec.title.toUpperCase();
+  const upText = `UP ${formatBytes(totalUp)}`, downText = `DOWN ${formatBytes(totalDown)}`;
+  c.font = FONT1;
+  const upW = c.measureText(upText).width, downW = c.measureText(downText).width;
+  const sw = 8, swGap = 5, lgGap = 12;
+  const upX = w - padR - upW, upSwX = upX - swGap - sw, downX = upSwX - lgGap - downW, downSwX = downX - swGap - sw;
+  c.font = FONT2;
+  const big = padL + c.measureText(upperTitle).width + 12 <= downSwX;
+  c.font = big ? FONT2 : FONT1; c.fillStyle = rgb(P.text1);
+  c.fillText(upperTitle, padL, big ? 14 : 16);
+  if (spec.subtitle) { c.font = FONT1; c.fillStyle = rgb(P.text2); c.fillText(spec.subtitle, padL, big ? 34 : 30); }
+
+  c.font = FONT1;
+  box(downSwX, 17, sw, sw, 2, P.down); c.fillStyle = rgb(P.text1); c.fillText(downText, downX, 16);
+  box(upSwX, 17, sw, sw, 2, P.up); c.fillStyle = rgb(P.text1); c.fillText(upText, upX, 16);
+
+  const plotL = 68, plotR = w - padR, plotT = 58, plotB = h - 34;
+  const plotW = Math.max(40, plotR - plotL), plotH = Math.max(40, plotB - plotT);
+  const yMax = niceCeiling(maxBucket), yMid = Math.floor(yMax / 2);
+
+  c.strokeStyle = rgb(P.grid); c.setLineDash([3, 3]);
+  for (const y of [plotT, plotT + Math.floor(plotH / 2)]) { c.beginPath(); c.moveTo(plotL, y + 0.5); c.lineTo(plotR, y + 0.5); c.stroke(); }
+  c.setLineDash([]); c.strokeStyle = rgb(P.axis);
+  c.beginPath(); c.moveTo(plotL, plotB + 0.5); c.lineTo(plotR, plotB + 0.5); c.stroke();
+
+  c.fillStyle = rgb(P.text2); c.textAlign = "right";
+  c.fillText(formatShortAxis(yMax), plotL - 8, plotT - 4);
+  c.fillText(formatShortAxis(yMid), plotL - 8, plotT + Math.floor(plotH / 2) - 4);
+  c.fillText("0", plotL - 8, plotB - 4);
+  c.textAlign = "left";
+
+  const count = spec.buckets.length;
+  if (count === 0) return;
+  const slot = plotW / count;
+  const barW = Math.min(22, Math.max(3, Math.floor(slot * 0.66)));
+  for (let i = 0; i < count; i++) {
+    const cx = plotL + Math.round((i + 0.5) * slot), left = cx - Math.floor(barW / 2);
+    const active = i === spec.active, future = spec.active >= 0 && i > spec.active;
+    box(left, plotT + 2, barW, plotH - 2, 2, future ? P.trackFuture : P.trackElapsed);
+
+    const b = spec.buckets[i], total = b.rx + b.tx;
+    if (total > 0 && yMax > 0) {
+      let totalPx = Math.round(total / yMax * (plotH - 2));
+      totalPx = Math.min(plotH - 2, Math.max(3, totalPx));
+      let downPx = b.rx > 0 ? Math.round(b.rx / total * totalPx) : 0, upPx = totalPx - downPx;
+      if (b.rx > 0 && downPx === 0 && totalPx >= 2) { downPx = 1; upPx = totalPx - 1; }
+      if (b.tx > 0 && upPx === 0 && totalPx >= 2) { upPx = 1; downPx = totalPx - 1; }
+      const top = plotB - totalPx, dc = active ? P.downHi : P.down, uc = active ? P.upHi : P.up;
+      const topRounded = (y, hh, col) => { c.beginPath(); c.roundRect(left, y, barW, hh, [2, 2, 0, 0]); c.fillStyle = rgb(col); c.fill(); };
+      if (upPx > 0 && downPx > 0) { c.fillStyle = rgb(dc); c.fillRect(left, plotB - downPx, barW, downPx); topRounded(top, upPx, uc); }
+      else if (downPx > 0) topRounded(top, downPx, dc);
+      else if (upPx > 0) topRounded(top, upPx, uc);
+    }
+    if (active) { c.fillStyle = rgb(P.marker); c.fillRect(cx - Math.max(2, Math.floor(barW / 3)), plotB + 4, Math.max(4, Math.floor(barW * 2 / 3)), 2); }
+      if (shouldDrawXLabel(i, count)) {
+      const lbl = b.label, lw = c.measureText(lbl).width;
+      const lx = Math.min(plotR - lw, Math.max(plotL, cx - lw / 2));
+      c.fillStyle = rgb(active ? P.text1 : P.text2);
+      c.fillText(lbl, lx, plotB + 10);
+    }
+  }
+}
+
+/* =====================================================================
+   Prayer Schedule Card renderer: radial bar dial matching NetworkChartRenderer
+   ===================================================================== */
+function drawPrayerScheduleCard(cv, p) {
+  const w = 820, h = 218;
+  const P = PALETTES.dark; // Matches NetworkUsagePage chart palette (#1C2028 + cyan #38BDF8 + violet #A78BFA)
+  const dpr = Math.max(1, window.devicePixelRatio || 1);
+  cv.width = Math.round(w * dpr);
+  cv.height = Math.round(h * dpr);
+  const c = cv.getContext("2d");
+  c.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+  const box = (x, y, bw, bh, r, col) => { c.beginPath(); c.roundRect(x, y, bw, bh, r); c.fillStyle = col; c.fill(); };
+  const GRAY_BAR = "rgb(75, 85, 101)";
+  const GRAY_PTR = "rgb(100, 116, 139)";
+  const GRAY_TXT = "rgb(118, 131, 150)";
+
+  c.save();
+  // 1. Card surface & border (identical to NetworkChartRenderer)
+  c.beginPath();
+  c.roundRect(0.5, 0.5, w - 1, h - 1, 12);
+  c.fillStyle = rgb(P.cardBg);
+  c.fill();
+  c.strokeStyle = rgb(P.cardBorder);
+  c.lineWidth = 1;
+  c.stroke();
+
+  // 2. Top header row + legend swatches (mirrors NetworkChartRenderer header)
+  const padL = 18, padR = 18;
+  c.textBaseline = "top";
+  c.textAlign = "left";
+  c.font = FONT2;
+  c.fillStyle = rgb(P.text1);
+  c.fillText("PRAYER SCHEDULE", padL, 14);
+
+  c.font = FONT1;
+  c.fillStyle = rgb(P.text2);
+  c.fillText(`${p.region.display.toUpperCase()}` + `  |  ${p.region.tz}  |  LOCAL ${hhmm(p.now)}`, padL, 34);
+
+  // Top-right legend swatches: PASSED (gray), NEXT (cyan), UPCOMING (violet)
+  const legends = [
+    { col: GRAY_PTR, text: "PASSED" },
+    { col: rgb(P.down), text: "COUNTDOWN" },
+    { col: rgb(P.up), text: "UPCOMING" },
+  ];
+  c.font = FONT1;
+  const sw = 8, swGap = 5, lgGap = 12;
+  let lx = w - padR;
+  for (let i = legends.length - 1; i >= 0; i--) {
+    const tw = c.measureText(legends[i].text).width;
+    lx -= tw;
+    c.fillStyle = rgb(P.text1);
+    c.fillText(legends[i].text, lx, 16);
+    lx -= (swGap + sw);
+    box(lx, 17, sw, sw, 2, legends[i].col);
+    lx -= lgGap;
+  }
+
+  // Subtle background grid lines + horizon baseline
+  const cx = w / 2, baseY = 198;
+  c.strokeStyle = rgb(P.grid);
+  c.lineWidth = 1;
+  c.setLineDash([3, 3]);
+  for (const gy of [96, 148]) {
+    c.beginPath(); c.moveTo(padL, gy + 0.5); c.lineTo(w - padR, gy + 0.5); c.stroke();
+  }
+  c.setLineDash([]);
+  c.strokeStyle = rgb(P.axis);
+  c.beginPath(); c.moveTo(padL, baseY + 0.5); c.lineTo(w - padR, baseY + 0.5); c.stroke();
+
+  // 3. Semicircular radial bar dial (61 bars spaced every 3 degrees from 180° to 0°)
+  const totalBars = 60; // indices 0..60 -> 61 radial bars
+  const milestoneIndices = [3, 13, 24, 36, 47, 57]; // Fajr, Sunrise, Dhuhr, Asr, Maghrib, Isha
+  const anchors = [
+    { k: 0, t: 0 },
+    ...p.milestones.map((m, idx) => ({ k: milestoneIndices[idx], t: m.t })),
+    { k: totalBars, t: 1440 },
+  ];
+
+  // Piecewise-linear map of current clock time -> bar position nowK
+  let nowK = 0;
+  for (let i = 0; i < anchors.length - 1; i++) {
+    const a0 = anchors[i], a1 = anchors[i + 1];
+    if (p.now >= a0.t && p.now <= a1.t) {
+      const span = Math.max(1, a1.t - a0.t);
+      nowK = a0.k + ((p.now - a0.t) / span) * (a1.k - a0.k);
+      break;
+    }
+  }
+  const targetMilestoneIdx = p.milestones.findIndex(m => m.name === p.cardPrayerName);
+  const targetK = targetMilestoneIdx >= 0 ? milestoneIndices[targetMilestoneIdx] : -1;
+
+  const rIn = 108, rOut = 122, rPtrIn = 103, rPtrOut = 136;
+
+  // Ambient cyan/violet glow inside the active semicircle
+  const innerGlow = c.createRadialGradient(cx, baseY - 36, 10, cx, baseY - 20, rOut);
+  innerGlow.addColorStop(0, "rgba(56, 189, 248, 0.08)");
+  innerGlow.addColorStop(1, "rgba(28, 32, 40, 0)");
+  c.fillStyle = innerGlow;
+  c.beginPath();
+  c.arc(cx, baseY, rOut, Math.PI, Math.PI * 2, false);
+  c.closePath();
+  c.fill();
+
+  // Draw all 61 radial bars around the semicircle
+  c.lineCap = "round";
+  for (let k = 0; k <= totalBars; k++) {
+    const degAngle = 180 - k * 3;
+    const rad = (degAngle * Math.PI) / 180;
+    const cos = Math.cos(rad), sin = Math.sin(rad);
+
+    const mIdx = milestoneIndices.indexOf(k);
+    const isPointer = mIdx !== -1;
+    const isTargetPtr = isPointer && mIdx === targetMilestoneIdx;
+    const isPassed = p.tomorrow ? !isTargetPtr : (k <= nowK && !(isTargetPtr && p.cardLabel === "Prayer Time"));
+    const isCountdownWindow = !p.tomorrow && k > nowK && targetK >= 0 && k <= targetK;
+
+    const inner = isPointer ? rPtrIn : rIn;
+    const outer = isPointer ? (isTargetPtr ? rPtrOut + 3 : rPtrOut) : rOut;
+
+    let strokeCol;
+    if (isTargetPtr) {
+      strokeCol = rgb(P.downHi);
+    } else if (isPassed) {
+      strokeCol = isPointer ? GRAY_PTR : GRAY_BAR;
+    } else if (isCountdownWindow) {
+      strokeCol = rgb(P.down);
+    } else {
+      strokeCol = isPointer ? rgb(P.upHi) : "rgba(167, 139, 250, 0.45)";
+    }
+
+    // Subtle glow on the target prayer pointer bar
+    if (isTargetPtr) {
+      c.save();
+      c.strokeStyle = "rgba(56, 189, 248, 0.32)";
+      c.lineWidth = 8;
+      c.beginPath();
+      c.moveTo(cx + cos * inner, baseY - sin * inner);
+      c.lineTo(cx + cos * outer, baseY - sin * outer);
+      c.stroke();
+      c.restore();
+    }
+
+    c.strokeStyle = strokeCol;
+    c.lineWidth = isPointer ? (isTargetPtr ? 4 : 3.2) : 2.4;
+    c.beginPath();
+    c.moveTo(cx + cos * inner, baseY - sin * inner);
+    c.lineTo(cx + cos * outer, baseY - sin * outer);
+    c.stroke();
+  }
+
+  // 4. Prayer name + time labels attached to each of the 6 pointer bars
+  cv._tileBounds = [];
+  p.milestones.forEach((m, idx) => {
+    const k = milestoneIndices[idx];
+    const degAngle = 180 - k * 3;
+    const rad = (degAngle * Math.PI) / 180;
+    const cos = Math.cos(rad), sin = Math.sin(rad);
+
+    const isTarget = idx === targetMilestoneIdx;
+    const isPassed = p.tomorrow ? !isTarget : (m.t <= p.now && !(isTarget && p.cardLabel === "Prayer Time"));
+    const onLeft = degAngle > 90;
+
+    const tipX = cx + cos * (rPtrOut + 7);
+    const tipY = baseY - sin * (rPtrOut + 5);
+    const arrow = m.arrow === "up" ? " ↑" : (m.arrow === "down" ? " ↓" : "");
+    const labelText = `${m.name.toUpperCase()}${arrow}  ${hhmm(m.t)}`;
+
+    c.font = isTarget
+      ? '700 11px "Cascadia Mono", Consolas, "Courier New", monospace'
+      : FONT1;
+    const tw = c.measureText(labelText).width;
+    const pillPadX = 8, pillH = 20;
+    const boxX = onLeft ? (tipX - tw - pillPadX * 2) : tipX;
+    const boxY = tipY - pillH / 2;
+
+    cv._tileBounds.push({ x1: boxX / w, x2: (boxX + tw + pillPadX * 2) / w, y1: boxY / h, y2: (boxY + pillH) / h, name: m.name, t: m.t });
+
+    if (isTarget) {
+      c.beginPath();
+      c.roundRect(boxX, boxY, tw + pillPadX * 2, pillH, 10);
+      c.fillStyle = "rgba(56, 189, 248, 0.14)";
+      c.fill();
+      c.strokeStyle = "rgba(56, 189, 248, 0.55)";
+      c.lineWidth = 1;
+      c.stroke();
+      c.fillStyle = rgb(P.downHi);
+    } else if (isPassed) {
+      c.fillStyle = GRAY_TXT;
+    } else {
+      c.fillStyle = rgb(P.text1);
+    }
+
+    c.textAlign = "left";
+    c.textBaseline = "middle";
+    c.fillText(labelText, boxX + pillPadX, boxY + pillH / 2 + 0.5);
+  });
+
+  // 5. Center hero countdown inside the barred semicircle
+  c.textAlign = "center";
+  c.textBaseline = "middle";
+  c.font = '700 25px "Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif';
+  c.fillStyle = rgb(P.text1);
+  c.fillText(p.cardPrayerName, cx, baseY - 76);
+
+  const pillText = p.cardLabel === "Prayer Time"
+    ? `NOW  •  ${hhmm(p.now)}`
+    : `TIME LEFT  •  ${Math.floor(p.until / 60)}H ${pad2(p.until % 60)}M`;
+  c.font = FONT1;
+  const pillW = Math.max(150, c.measureText(pillText).width + 24), pillH = 23;
+  const pillX = cx - pillW / 2, pillY = baseY - 52;
+  c.beginPath();
+  c.roundRect(pillX, pillY, pillW, pillH, pillH / 2);
+  c.fillStyle = "rgba(56, 189, 248, 0.12)";
+  c.fill();
+  c.strokeStyle = "rgba(56, 189, 248, 0.4)";
+  c.lineWidth = 1;
+  c.stroke();
+  c.fillStyle = rgb(P.downHi);
+  c.fillText(pillText, cx, pillY + pillH / 2 + 0.5);
+
+  c.font = FONT1;
+  c.fillStyle = rgb(P.text2);
+  const nextSub = p.cardLabel === "Prayer Time"
+    ? "PRAYER TIME REACHED"
+    : `STARTS AT ${hhmm(p.next.t)}${p.tomorrow ? " (TOMORROW)" : ""}`;
+  c.fillText(nextSub, cx, baseY - 15);
+
+  c.restore();
+}
+
+/* =====================================================================
+   Tiny markdown renderer (only what DockPulse's MarkdownContent uses)
+   ===================================================================== */
+const esc = s => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+function inline(s) {
+  return esc(s)
+    .replace(/!\[([^\]]*)\]\(chart:([\w-]+)\)/g, '<canvas class="chart" data-chart="$2" role="img" aria-label="$1"></canvas>')
+    .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
+    .replace(/(^|[\s(])_(.+?)_(?=$|[\s.,)])/g, "$1<em>$2</em>");
+}
+function mdTable(rows) {
+  const cells = r => r.split("|").slice(1, -1).map(x => x.trim());
+  const head = cells(rows[0]);
+  const align = cells(rows[1]).map(a => a.endsWith(":") ? "right" : "left");
+  let html = "<table><thead><tr>" + head.map((h, i) => `<th style="text-align:${align[i]}">${inline(h)}</th>`).join("") + "</tr></thead><tbody>";
+  for (const r of rows.slice(2)) html += "<tr>" + cells(r).map((x, i) => `<td style="text-align:${align[i]}">${inline(x)}</td>`).join("") + "</tr>";
+  return html + "</tbody></table>";
+}
+function md(src) {
+  const lines = src.split("\n");
+  let html = "", para = [];
+  const flush = () => {
+    if (!para.length) return;
+    html += "<p>" + para.map((l, i) => inline(l.replace(/\s+$/, "")) + (i < para.length - 1 ? (/ {2}$/.test(l) ? "<br>" : " ") : "")).join("") + "</p>";
+    para = [];
+  };
+  for (let i = 0; i < lines.length; i++) {
+    const l = lines[i];
+    if (/^###\s/.test(l)) { flush(); html += `<h3>${inline(l.slice(4))}</h3>`; continue; }
+    if (/^\|/.test(l)) { flush(); const rows = []; while (i < lines.length && /^\|/.test(lines[i])) rows.push(lines[i++]); i--; html += mdTable(rows); continue; }
+    if (l.trim() === "") { flush(); continue; }
+    para.push(l);
+  }
+  flush();
+  return `<div class="md">${html}</div>`;
+}
+
+/* =====================================================================
+   Rendering
+   ===================================================================== */
+const $ = id => document.getElementById(id);
+let current = null;      // current page object
+let visibleItems = [];   // filtered list items
+
+function currentPage() { return PAGES[state.stack[state.stack.length - 1]](); }
+
+function render() {
+  current = currentPage();
+  renderDock();
+  renderTop();
+  renderBody();
+  renderBar();
+}
+
+function renderDock() {
+  const dock = $("dock");
+  dock.innerHTML = "";
+  const open = state.stack[state.stack.length - 1];
+  for (const b of dockBands()) {
+    const el = document.createElement("button");
+    el.className = "band" + (b.page === open ? " open" : "");
+    el.title = b.label;
+    el.innerHTML = `<span class="ic">${b.icon}</span><span><div class="t">${esc(b.title)}</div><div class="s">${esc(b.subtitle)}</div></span>`;
+    el.addEventListener("click", () => openPage(b.page, true));
+    el.addEventListener("contextmenu", e => { e.preventDefault(); showMenu(b.more, e.clientX, e.clientY); });
+    dock.appendChild(el);
+  }
+}
+
+function renderTop() {
+  const top = $("palTop");
+  const root = state.stack.length === 1;
+  top.innerHTML = root
+    ? `<span class="lead ic"></span>`
+    : `<button class="lead ic" id="backBtn" title="Back (Esc)"></button>`;
+  const input = document.createElement("input");
+  input.id = "search";
+  input.autocomplete = "off";
+  input.spellcheck = false;
+  if (current.kind === "content") { input.disabled = true; input.placeholder = current.title; }
+  else { input.placeholder = current.placeholder; input.value = state.filter; }
+  input.addEventListener("input", () => { state.filter = input.value; state.sel = 0; renderBody(); renderBar(); });
+  top.appendChild(input);
+  if (!root) $("backBtn").addEventListener("click", goBack);
+  if (!input.disabled) input.focus({ preventScroll: true });
+}
+
+function renderBody() {
+  const body = $("palBody");
+  body.innerHTML = "";
+  body.className = "pal-body" + (current.showDetails ? " split" : "");
+  if (current.kind === "content") {
+    const wrap = document.createElement("div");
+    wrap.className = "content";
+    for (const block of current.content) {
+      if (block.chart) {
+        const cv = document.createElement("canvas");
+        cv.className = "chart";
+        wrap.appendChild(cv);
+        drawChart(cv, block.chart);
+      } else {
+        wrap.insertAdjacentHTML("beforeend", md(block.md));
+      }
+    }
+    body.appendChild(wrap);
+    visibleItems = [];
+    return;
+  }
+
+  const q = state.filter.trim().toLowerCase();
+  visibleItems = current.items.filter(it => !q || (it.title + " " + (it.subtitle || "")).toLowerCase().includes(q));
+  state.sel = Math.min(state.sel, Math.max(0, visibleItems.length - 1));
+
+  const list = document.createElement("div");
+  list.className = "list" + (current.showDetails ? " with-details" : "");
+  list.setAttribute("role", "listbox");
+  if (current.headerCard && !q) {
+    const cardWrap = document.createElement("div");
+    cardWrap.className = "prayer-card-wrap";
+    const cv = document.createElement("canvas");
+    cv.className = "prayer-card";
+    cv.setAttribute("role", "img");
+    cv.setAttribute("aria-label", `Next prayer ${current.headerCard.cardPrayerName}`);
+    cv.addEventListener("click", e => {
+      const r = cv.getBoundingClientRect();
+      const nx = (e.clientX - r.left) / r.width, ny = (e.clientY - r.top) / r.height;
+      const hit = (cv._tileBounds || []).find(b => nx >= b.x1 && nx <= b.x2 && ny >= b.y1 && ny <= b.y2);
+      if (hit) toast(`Copied “${hit.name}: ${hhmm(hit.t)} (${current.headerCard.region.city})”`);
+    });
+    cardWrap.appendChild(cv);
+    list.appendChild(cardWrap);
+    drawPrayerScheduleCard(cv, current.headerCard);
+  }
+  if (visibleItems.length === 0) list.insertAdjacentHTML("beforeend", `<div class="empty">No results</div>`);
+  let lastSection = "";
+  visibleItems.forEach((it, i) => {
+    if (it.section && it.section !== lastSection) {
+      lastSection = it.section;
+      const hdr = document.createElement("div");
+      hdr.className = "sec-hdr";
+      if (current.headerCard && !q) { hdr.style.marginTop = "6px"; hdr.style.borderTop = "1px solid var(--stroke)"; hdr.style.paddingTop = "10px"; }
+      hdr.textContent = it.section;
+      list.appendChild(hdr);
+    }
+    const row = document.createElement("div");
+    row.className = "row" + (i === state.sel ? " sel" : "");
+    row.setAttribute("role", "option");
+    row.innerHTML =
+      `<span class="ic">${it.icon}</span>` +
+      `<div class="txt"><div class="ti">${esc(it.title)}</div>${it.subtitle ? `<div class="su">${esc(it.subtitle)}</div>` : ""}</div>` +
+      (it.tags && it.tags.length ? `<div class="tags">${it.tags.map(t => `<span class="tag">${esc(t)}</span>`).join("")}</div>` : "");
+    row.addEventListener("click", () => selectRow(i));
+    row.addEventListener("dblclick", () => invoke(it.cmd));
+    row.addEventListener("contextmenu", e => { e.preventDefault(); selectRow(i); if (it.more) showMenu(it.more, e.clientX, e.clientY); });
+    list.appendChild(row);
+  });
+  body.appendChild(list);
+
+  if (current.showDetails) {
+    const det = document.createElement("div");
+    det.className = "details";
+    det.id = "details";
+    body.appendChild(det);
+  }
+  selectRow(state.sel);
+}
+
+// Moves the selection without rebuilding rows (so double-click lands on the same element)
+function selectRow(i) {
+  state.sel = i;
+  document.querySelectorAll("#palBody .row").forEach((r, j) => r.classList.toggle("sel", j === i));
+  const selRow = document.querySelector("#palBody .row.sel");
+  if (selRow) selRow.scrollIntoView({ block: "nearest" });
+  const det = $("details");
+  if (det) {
+    const it = visibleItems[i];
+    det.innerHTML = it && it.details ? `<h2>${esc(it.details.title)}</h2>` + md(it.details.body) : "";
+    det.querySelectorAll("canvas[data-chart]").forEach(cv => {
+      const spec = current.charts[cv.dataset.chart];
+      if (spec) drawChart(cv, spec);
+    });
+  }
+  renderBar();
+}
+
+function renderBar() {
+  $("barIcon").textContent = current.icon;
+  $("barTitle").textContent = current.title;
+  const it = visibleItems[state.sel];
+  const primary = current.kind === "list" ? (it ? it.cmd : null) : (current.primaryCmd || null);
+  $("primaryBtn").hidden = !primary;
+  $("primaryName").textContent = primary ? primary.name : "";
+  const actions = current.kind === "content" ? current.commands : (it && it.more);
+  $("actionsBtn").hidden = !(actions && actions.length);
+  $("barSep").hidden = !primary || $("actionsBtn").hidden;
+}
+
+/* =====================================================================
+   Behaviour
+   ===================================================================== */
+function openPage(id, fromDock) {
+  hideMenu();
+  state.stack = fromDock ? ["home", id] : [...state.stack, id];
+  state.filter = ""; state.sel = 0;
+  render();
+}
+function goBack() {
+  hideMenu();
+  if (state.stack.length > 1) state.stack.pop();
+  state.filter = ""; state.sel = 0;
+  render();
+}
+function invoke(cmd) {
+  if (!cmd) return;
+  hideMenu();
+  if (cmd.page) { openPage(cmd.page, false); return; }
+  if (cmd.run) cmd.run();
+  if (cmd.back) { goBack(); return; }
+  render();
+}
+
+let menuItems = [], menuSel = -1;
+function showMenu(items, x, y) {
+  if (!items || !items.length) return;
+  const menu = $("menu");
+  menuItems = items; menuSel = -1;
+  menu.innerHTML = "";
+  items.forEach(it => {
+    const b = document.createElement("button");
+    b.setAttribute("role", "menuitem");
+    b.innerHTML = `<span class="ic">${it.icon || ""}</span><span>${esc(it.name)}</span>`;
+    b.addEventListener("click", e => { e.stopPropagation(); invoke(it); });
+    menu.appendChild(b);
+  });
+  menu.hidden = false;
+  const r = menu.getBoundingClientRect();
+  menu.style.left = Math.max(8, Math.min(x, innerWidth - r.width - 8)) + "px";
+  menu.style.top = Math.max(8, Math.min(y, innerHeight - r.height - 8)) + "px";
+}
+function hideMenu() { $("menu").hidden = true; menuItems = []; }
+function toggleActions() {
+  if (!$("menu").hidden) { hideMenu(); return; }
+  const it = visibleItems[state.sel];
+  const items = current.kind === "content" ? current.commands : (it && it.more);
+  const r = $("actionsBtn").getBoundingClientRect();
+  showMenu(items, r.right - 260, r.top - 8 - (items ? items.length * 34 + 8 : 0));
+}
+
+let toastTimer = 0;
+function toast(msg) {
+  const t = $("toast");
+  t.textContent = msg; t.hidden = false;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { t.hidden = true; }, 2200);
+}
+
+function showWinNotif(prayerName, timeStr, regionDisplay) {
+  $("wnIcon").textContent = prayerGlyph(prayerName);
+  $("wnTitle").textContent = `${prayerName} Prayer Time — ${timeStr}`;
+  $("wnBody").textContent = `It is now time for ${prayerName} in ${regionDisplay}.`;
+  $("winNotif").hidden = false;
+}
+function hideWinNotif() { $("winNotif").hidden = true; }
+function checkPrayerNotification() {
+  if (!state.prayer.notifications) { hideWinNotif(); return; }
+  const p = buildPrayer();
+  const reached = p.entries.find(e => e.obligatory && e.t === state.clock);
+  if (reached) showWinNotif(reached.name, hhmm(reached.t), p.region.display);
+  else hideWinNotif();
+}
+$("wnClose").addEventListener("click", hideWinNotif);
+
+document.addEventListener("click", e => { if (!$("menu").contains(e.target) && e.target !== $("actionsBtn") && !$("actionsBtn").contains(e.target)) hideMenu(); });
+$("primaryBtn").addEventListener("click", () => { const it = visibleItems[state.sel]; if (it) invoke(it.cmd); });
+$("actionsBtn").addEventListener("click", e => { e.stopPropagation(); toggleActions(); });
+
+document.addEventListener("keydown", e => {
+  // Leave the preview toolbar's own inputs alone (theme buttons only keep Enter/Space)
+  const t = e.target;
+  if (t.closest && t.closest(".controls") && (t.tagName !== "BUTTON" || e.key === "Enter" || e.key === " ")) return;
+  const menuOpen = !$("menu").hidden;
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") { e.preventDefault(); toggleActions(); return; }
+  if (menuOpen) {
+    const buttons = [...$("menu").querySelectorAll("button")];
+    if (e.key === "Escape") { e.preventDefault(); hideMenu(); return; }
+    if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+      e.preventDefault();
+      menuSel = (menuSel + (e.key === "ArrowDown" ? 1 : -1) + buttons.length) % buttons.length;
+      buttons.forEach((b, i) => b.classList.toggle("sel", i === menuSel));
+      return;
+    }
+    if (e.key === "Enter" && menuSel >= 0) { e.preventDefault(); invoke(menuItems[menuSel]); return; }
+    return;
+  }
+  if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+    if (!visibleItems.length) return;
+    e.preventDefault();
+    selectRow((state.sel + (e.key === "ArrowDown" ? 1 : -1) + visibleItems.length) % visibleItems.length);
+  } else if (e.key === "Enter") {
+    const it = visibleItems[state.sel];
+    if (it) { e.preventDefault(); invoke(it.cmd); }
+  } else if (e.key === "Escape") {
+    e.preventDefault();
+    if (state.filter) { state.filter = ""; state.sel = 0; render(); } else goBack();
+  } else if (e.key === "Backspace" && !state.filter && state.stack.length > 1 && (e.target.id === "search" || e.target === document.body)) {
+    e.preventDefault(); goBack();
+  }
+});
+
+// Preview toolbar
+function setTheme(t) {
+  state.theme = t;
+  if (t === "auto") document.documentElement.removeAttribute("data-theme");
+  else document.documentElement.setAttribute("data-theme", t);
+  document.querySelectorAll("[data-theme-btn]").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.themeBtn === t)));
+  try { localStorage.setItem("dockpulse-preview-theme", t); } catch (_) { /* storage unavailable */ }
+  render();
+}
+document.querySelectorAll("[data-theme-btn]").forEach(b => b.addEventListener("click", () => setTheme(b.dataset.themeBtn)));
+matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => { if (state.theme === "auto") render(); });
+
+$("scenario").addEventListener("change", e => {
+  state.scenario = e.target.value;
+  if (state.scenario === "tehran") {
+    state.prayer = { ...state.prayer, regionId: "tehran", methodId: "tehran", asr: "Standard" };
+  } else {
+    state.prayer = { ...state.prayer, regionId: "kabul", methodId: "karachi", asr: "Hanafi" };
+  }
+  if (state.scenario === "prayertime") {
+    state.clock = T("15:01");
+    $("clock").value = "15:01";
+    state.prayer.notifications = true;
+    state.stack = ["home", "prayer"];
+  }
+  state.sel = 0;
+  render();
+  checkPrayerNotification();
+});
+$("clock").addEventListener("input", e => {
+  if (!e.target.value) return;
+  state.clock = T(e.target.value);
+  render();
+  checkPrayerNotification();
+});
+window.addEventListener("resize", () => { if (current) { renderBody(); } });
+
+let savedTheme = "auto";
+try { savedTheme = localStorage.getItem("dockpulse-preview-theme") || "auto"; } catch (_) { /* storage unavailable */ }
+setTheme(["auto", "light", "dark"].includes(savedTheme) ? savedTheme : "auto");
+</script>
+</body>
+</html>

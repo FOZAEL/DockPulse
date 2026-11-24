@@ -3,6 +3,7 @@ using System.Threading;
 using DockPulse.Commands;
 using DockPulse.Pages;
 using DockPulse.Services;
+using Microsoft.CommandPalette.Extensions;
 using Microsoft.CommandPalette.Extensions.Toolkit;
 
 namespace DockPulse.DockBands;
@@ -30,18 +31,11 @@ internal sealed partial class PrayerTimesDockBandItem : ListItem, IDisposable
         Title = "Prayer";
         Subtitle = _service.SelectedRegion.City;
         Icon = new IconInfo("\uE708");
-
-        MoreCommands =
-        [
-            new CommandContextItem(_regionPickerPage) { Title = "Change Region / City" },
-            new CommandContextItem(new ActionCommand("Toggle Asr School (Hanafi / Standard)", () => _service.ToggleAsrSchool(), new IconInfo("\uE8AB"))),
-            new CommandContextItem(_methodPickerPage) { Title = "Change Calculation Method" },
-            new CommandContextItem(new ActionCommand("Refresh Prayer Times", Refresh, new IconInfo("\uE72C"))),
-        ];
+        MoreCommands = BuildMoreCommands(_service.NotificationsEnabled);
 
         _service.ConfigurationChanged += Refresh;
 
-        // Immediate calculation, then refresh every 30s to keep minute countdown accurate
+        // Immediate calculation, then refresh every 30s to keep minute countdown & toast notifications accurate
         _timer = new Timer(_ => Refresh(), null, TimeSpan.Zero, TimeSpan.FromSeconds(30));
     }
 
@@ -50,11 +44,13 @@ internal sealed partial class PrayerTimesDockBandItem : ListItem, IDisposable
         try
         {
             var snapshot = _service.GetCurrentSchedule();
-            _page.UpdateSnapshot(snapshot);
+            _service.CheckAndSendNotification(snapshot);
+            _ = _page.UpdateSnapshotAsync(snapshot);
 
             Title = snapshot.FormatCountdownShort();
             Subtitle = snapshot.FormatDockSubtitle();
-            Icon = new IconInfo(PrayerTimesService.GetPrayerGlyph(snapshot.NextPrayerName));
+            Icon = new IconInfo(PrayerTimesService.GetPrayerGlyph(snapshot.CardPrayerName));
+            MoreCommands = BuildMoreCommands(snapshot.NotificationsEnabled);
         }
         catch
         {
@@ -63,9 +59,32 @@ internal sealed partial class PrayerTimesDockBandItem : ListItem, IDisposable
         }
     }
 
+    private IContextItem[] BuildMoreCommands(bool notificationsEnabled) =>
+    [
+        new CommandContextItem(_regionPickerPage)
+        {
+            Title = "Change Region & Timezone",
+            Icon = new IconInfo("\uE707"),
+        },
+        new CommandContextItem(_methodPickerPage)
+        {
+            Title = "Change Calculation Method",
+            Icon = new IconInfo("\uE909"),
+        },
+        new CommandContextItem(new ActionCommand(
+            $"Prayer Notifications ({(notificationsEnabled ? "On" : "Off")})",
+            () => _service.ToggleNotifications(),
+            new IconInfo(notificationsEnabled ? "\uEA8F" : "\uE7ED"))),
+        new CommandContextItem(new ActionCommand(
+            "Refresh Prayer Times",
+            Refresh,
+            new IconInfo("\uE72C"))),
+    ];
+
     public void Dispose()
     {
         _service.ConfigurationChanged -= Refresh;
         _timer.Dispose();
+        _page.Dispose();
     }
 }
