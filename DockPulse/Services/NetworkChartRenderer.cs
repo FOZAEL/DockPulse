@@ -111,13 +111,17 @@ public static class NetworkChartRenderer
         int titleY = titleScale == 2 ? 14 : 16;
         int subtitleY = titleScale == 2 ? 34 : 30;
 
+        // In narrow details-pane cards a long title (e.g. an adapter name) can't share its row with the legend
+        // even at scale 1; then the legend gets its own row under the subtitle, just above the plot.
+        bool legendOwnRow = titleScale == 1 && padLeft + PixelCanvas.MeasureText(upperTitle, scale: 1) + 12 > downSwatchX;
+
         canvas.DrawText(upperTitle, padLeft, titleY, palette.TextPrimary, scale: titleScale);
         if (!string.IsNullOrWhiteSpace(subtitle))
         {
             canvas.DrawText(subtitle, padLeft, subtitleY, palette.TextSecondary, scale: 1);
         }
 
-        int legendY = 16;
+        int legendY = legendOwnRow ? 44 : 16;
         canvas.FillRoundedRect(downSwatchX, legendY + 1, swatchSize, swatchSize, 2, palette.DownloadBar);
         canvas.DrawText(downText, downX, legendY, palette.TextPrimary, scale: 1);
 

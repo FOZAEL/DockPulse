@@ -124,6 +124,10 @@
   .band .ic { font-size: 16px; width: 20px; }
   .band .t { font-size: 12px; font-weight: 600; white-space: nowrap; }
   .band .s { font-size: 11px; color: var(--text-2); white-space: nowrap; }
+  .band-group { display: inline-flex; align-items: stretch; gap: 1px; border-radius: 6px; }
+  .band-group .band { border-radius: 6px; }
+  .band.band-icon { padding: 4px 8px; gap: 0; }
+  .band.band-icon .ic { font-size: 13px; width: 16px; }
 
   /* ---------- command palette window ---------- */
   .palette {
@@ -151,7 +155,7 @@
   .pal-top input:disabled { cursor: default; }
   .pal-body { flex: 1; min-height: 0; display: flex; }
   .list { flex: 1; min-width: 0; overflow-y: auto; padding: 4px; }
-  .list.with-details { flex: 0 0 52%; border-right: 1px solid var(--stroke); }
+  .list.with-details { flex: 1 1 auto; border-right: 1px solid var(--stroke); }
   .row {
     position: relative; display: flex; align-items: center; gap: 12px;
     padding: 8px 12px; border-radius: 4px; cursor: default; min-height: 52px;
@@ -171,6 +175,18 @@
     font-size: 11.5px; padding: 1px 7px; border-radius: 4px; white-space: nowrap;
     background: var(--tag-bg); border: 1px solid var(--tag-stroke); color: var(--text-2);
   }
+  .tag.ok { background: rgba(16, 185, 129, .14); border-color: rgba(16, 185, 129, .38); color: #10b981; }
+  .tag.accent { background: rgba(56, 189, 248, .14); border-color: rgba(56, 189, 248, .38); color: var(--accent); }
+  .tag.warn { background: rgba(245, 158, 11, .15); border-color: rgba(245, 158, 11, .4); color: #d97706; }
+  .tag.danger { background: rgba(244, 63, 94, .15); border-color: rgba(244, 63, 94, .42); color: #e11d48; }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) .tag.warn { color: #fbbf24; }
+    :root:not([data-theme="light"]) .tag.danger { color: #fb7185; }
+    :root:not([data-theme="light"]) .tag.ok { color: #34d399; }
+  }
+  :root[data-theme="dark"] .tag.warn { color: #fbbf24; }
+  :root[data-theme="dark"] .tag.danger { color: #fb7185; }
+  :root[data-theme="dark"] .tag.ok { color: #34d399; }
   .empty { padding: 32px; text-align: center; color: var(--text-3); }
   .sec-hdr {
     font-size: 12px; font-weight: 600; color: var(--text-2);
@@ -178,13 +194,46 @@
   }
   .sec-hdr:first-child { margin-top: 0; border-top: 0; padding-top: 6px; }
 
-  .details { flex: 1; min-width: 0; overflow-y: auto; padding: 16px 18px; }
+  /* Same content width as Command Palette's details pane at its default size (~345 px); wider images get clipped */
+  .details { flex: 0 0 381px; min-width: 0; overflow-y: auto; overflow-x: hidden; padding: 16px 18px; }
   .details h2 { font-size: 18px; font-weight: 600; margin: 0 0 10px; }
 
   .content { flex: 1; overflow-y: auto; padding: 16px 20px; display: flex; flex-direction: column; gap: 10px; }
   .chart { display: block; width: 100%; height: auto; }
+  .pomo-card { display: block; width: 100%; max-width: 480px; height: auto; margin: 0 auto; border-radius: 12px; }
   .prayer-card-wrap { padding: 6px 8px 4px; }
   .prayer-card { display: block; width: 100%; height: auto; border-radius: 12px; cursor: pointer; }
+
+  /* Adaptive Card FormContent mock */
+  .form-card {
+    background: var(--input); border: 1px solid var(--stroke); border-radius: 8px;
+    padding: 14px 16px; display: flex; flex-direction: column; gap: 12px;
+  }
+  .form-card.compact { padding: 10px 12px; gap: 8px; max-width: 480px; width: 100%; margin: 0 auto; }
+  .form-title { font-size: 15px; font-weight: 600; margin: 0; }
+  .form-desc { font-size: 12.5px; color: var(--text-2); margin: 0; }
+  .form-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+  .form-field { display: flex; flex-direction: column; gap: 5px; }
+  .form-label { font-size: 12.5px; font-weight: 600; color: var(--text-2); }
+  .form-input {
+    font: inherit; font-size: 13.5px; color: var(--text);
+    background: var(--surface); border: 1px solid var(--stroke-strong); border-radius: 6px; padding: 7px 10px;
+  }
+  .form-input:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+  .form-toggle { display: flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer; }
+  .form-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  .form-card.compact .form-actions { justify-content: center; }
+  .form-btn {
+    display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--stroke-strong);
+    background: var(--tag-bg); color: var(--text); border-radius: 6px; padding: 6px 12px;
+    font-size: 13px; font-weight: 500; cursor: pointer;
+  }
+  .form-btn:hover { background: var(--row-sel); }
+  .form-btn.primary { background: var(--accent); border-color: transparent; color: #ffffff; font-weight: 600; }
+  :root[data-theme="dark"] .form-btn.primary { color: #0b0d14; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .form-btn.primary { color: #0b0d14; } }
+  .form-btn.primary:hover { filter: brightness(1.08); }
+  .form-err { font-size: 12px; color: #e11d48; margin: 0; }
 
   .md { font-size: 13.5px; color: var(--text); }
   .md p { margin: 0 0 10px; }
@@ -265,11 +314,17 @@
     <label>Scenario
       <select id="scenario">
         <option value="normal">Normal</option>
+        <option value="ai_limit">AI Usage: Claude 0% (limit reached)</option>
+        <option value="ai_nosignin">AI Usage: Codex no sessions, agy not installed</option>
+        <option value="bt_fallback">Bluetooth: pinned device disconnected</option>
+        <option value="coffee_due">Daily checklist: Coffee time (10:05)</option>
+        <option value="pomodoro_running">Pomodoro: running live (Focus 2/4)</option>
         <option value="prayertime">Prayer time reached (notification)</option>
         <option value="tehran">Tehran / Jafari method</option>
         <option value="low">Low battery + charging</option>
         <option value="nodevices">No wireless devices</option>
         <option value="notraffic">No network traffic yet</option>
+        <option value="folder_missing">Working folder missing</option>
       </select>
     </label>
     <label>Clock <input type="time" id="clock" value="14:11"></label>
@@ -292,7 +347,7 @@
     </div>
   </section>
 
-  <p class="hint">Click a Dock band to open its page · right-click a band for its menu · click selects a row, double-click or Enter runs it · Esc goes back</p>
+  <p class="hint">Click a Dock band to open its page · click ▶/⏸ on Pomodoro to start/pause · right-click a band for its menu · click selects a row, double-click or Enter runs it · Esc goes back</p>
 </main>
 
 <div class="menu" id="menu" role="menu" hidden></div>
@@ -376,16 +431,38 @@ const MOCK_DATE = { year: 2026, month: 10 /* 0-based: November */, day: 23 };
 
 const WIRELESS_SCENARIOS = {
   normal: [
-    { name: "PRO X2 SUPERSTRIKE", kind: "Mouse", pct: 78, charging: false, conn: "Logitech LIGHTSPEED" },
-    { name: "AirPods Pro 3", kind: "Audio", pct: 85, charging: false, conn: "Apple BLE", detail: "L: 85% • R: 80% • Case: 60%" },
-    { name: "Xbox Wireless Controller", kind: "Controller", pct: 66, charging: false, conn: "XInput (Wireless)" },
+    { id: "mouse-pro-x2", name: "PRO X2 SUPERSTRIKE", kind: "Mouse", pct: 78, charging: false, conn: "Logitech LIGHTSPEED" },
+    { id: "airpods-pro-3", name: "AirPods Pro 3", kind: "Audio", pct: 85, charging: false, conn: "Apple BLE", detail: "L: 85% • R: 80% • Case: 60%" },
+    { id: "xbox-ctrl", name: "Xbox Wireless Controller", kind: "Controller", pct: 66, charging: false, conn: "XInput (Wireless)" },
   ],
   low: [
-    { name: "PRO X2 SUPERSTRIKE", kind: "Mouse", pct: 12, charging: false, conn: "Logitech LIGHTSPEED" },
-    { name: "AirPods Pro 3", kind: "Audio", pct: 40, charging: false, conn: "Apple BLE", detail: "L: 40% • R: 38% • Case: 60%⚡" },
-    { name: "Xbox Wireless Controller", kind: "Controller", pct: 100, charging: true, conn: "XInput (Wired)" },
+    { id: "mouse-pro-x2", name: "PRO X2 SUPERSTRIKE", kind: "Mouse", pct: 12, charging: false, conn: "Logitech LIGHTSPEED" },
+    { id: "airpods-pro-3", name: "AirPods Pro 3", kind: "Audio", pct: 40, charging: false, conn: "Apple BLE", detail: "L: 40% • R: 38% • Case: 60%⚡" },
+    { id: "xbox-ctrl", name: "Xbox Wireless Controller", kind: "Controller", pct: 100, charging: true, conn: "XInput (Wired)" },
+  ],
+  bt_fallback: [
+    { id: "mouse-pro-x2", name: "PRO X2 SUPERSTRIKE", kind: "Mouse", pct: 78, charging: false, conn: "Logitech LIGHTSPEED" },
+    { id: "xbox-ctrl", name: "Xbox Wireless Controller", kind: "Controller", pct: 66, charging: false, conn: "XInput (Wireless)" },
   ],
   nodevices: [],
+};
+
+const AI_SCENARIOS = {
+  normal: [
+    { id: "claude", name: "Claude", plan: "Claude Code CLI • /usage", signedIn: true, shortPct: 38, shortReset: "1h 12m", weekPct: 72, weekReset: "3d 5h", age: "updated 3 min ago", url: "https://claude.ai/settings/usage" },
+    { id: "antigravity", name: "Antigravity", plan: "Antigravity CLI • Gemini Models", signedIn: true, shortPct: 80, shortReset: "1h 59m", weekPct: 94, weekReset: "6d 20h", age: "updated 2 min ago", url: "https://antigravity.google" },
+    { id: "codex", name: "Codex", plan: "Codex CLI • Local sessions", signedIn: true, shortPct: 54, shortReset: "2h 05m", weekPct: 88, weekReset: "5d 2h", age: "updated 3 min ago", url: "https://chatgpt.com/codex/settings/usage" },
+  ],
+  ai_limit: [
+    { id: "claude", name: "Claude", plan: "Claude Code CLI • /usage", signedIn: true, shortPct: 0, shortReset: "42m", weekPct: 64, weekReset: "3d 5h", age: "updated 1 min ago", url: "https://claude.ai/settings/usage" },
+    { id: "antigravity", name: "Antigravity", plan: "Antigravity CLI • Gemini Models", signedIn: true, shortPct: 71, shortReset: "3h 10m", weekPct: 90, weekReset: "6d 20h", age: "updated 1 min ago", url: "https://antigravity.google" },
+    { id: "codex", name: "Codex", plan: "Codex CLI • Local sessions", signedIn: true, shortPct: 54, shortReset: "2h 05m", weekPct: 88, weekReset: "5d 2h", age: "updated 4 min ago", url: "https://chatgpt.com/codex/settings/usage" },
+  ],
+  ai_nosignin: [
+    { id: "claude", name: "Claude", plan: "Claude Code CLI • /usage", signedIn: true, shortPct: 62, shortReset: "2h 45m", weekPct: 78, weekReset: "3d 5h", age: "updated 3 min ago", url: "https://claude.ai/settings/usage" },
+    { id: "antigravity", name: "Antigravity", plan: "Antigravity CLI • /usage", signedIn: false, unavailableSub: "agy CLI not found", unavailableCard: "AGY CLI NOT FOUND", url: "https://antigravity.google" },
+    { id: "codex", name: "Codex", plan: "Codex CLI • Local sessions", signedIn: false, unavailableSub: "No local Codex sessions found", unavailableCard: "NO LOCAL CODEX SESSIONS", url: "https://chatgpt.com/codex/settings/usage" },
+  ],
 };
 
 const METHODS = [
@@ -452,6 +529,45 @@ const state = {
   scenario: "normal",
   clock: T("14:11"),
   prayer: { regionId: "kabul", methodId: "karachi", asr: "Hanafi", notifications: true },
+  wireless: { pinnedId: "mouse-pro-x2", pinnedName: "PRO X2 SUPERSTRIKE" },
+  workFolder: { path: "C:\\Dev\\DockPulse" },
+  today: {
+    nextId: 6,
+    water: 3,
+    waterGoal: 8,
+    coffeeTime: T("10:00"),
+    coffeeDone: true,
+    editingId: null,
+    items: [
+      { id: 1, title: "Morning walk", done: true },
+      { id: 2, title: "Take vitamins", done: true },
+      { id: 3, title: "Read 20 pages", done: false },
+      { id: 4, title: "Inbox zero", done: false },
+      { id: 5, title: "Stretch 10 min", done: false },
+    ],
+  },
+  pomodoro: {
+    focusMin: 25,
+    shortBreakMin: 5,
+    longBreakMin: 15,
+    sessionsPerCycle: 4,
+    notify: true,
+    phase: "focus",
+    sessionIndex: 1,
+    remainingSec: 25 * 60,
+    totalSec: 25 * 60,
+    running: false,
+    todaySessions: 3,
+    weekDays: [
+      { label: "Tue", sessions: 2 },
+      { label: "Wed", sessions: 4 },
+      { label: "Thu", sessions: 5 },
+      { label: "Fri", sessions: 3 },
+      { label: "Sat", sessions: 1 },
+      { label: "Sun", sessions: 0 },
+      { label: "Mon", sessions: 3 },
+    ],
+  },
   stack: ["home"],
   filter: "",
   sel: 0,
@@ -583,6 +699,107 @@ function buildPrayer() {
 
 const devices = () => WIRELESS_SCENARIOS[state.scenario] || WIRELESS_SCENARIOS.normal;
 
+function resolveWireless() {
+  const list = devices();
+  if (list.length === 0) {
+    return { list, active: null, pinnedMissing: false, pinnedName: state.wireless.pinnedName };
+  }
+  const pinned = list.find(d => d.id === state.wireless.pinnedId);
+  if (pinned) {
+    return { list, active: pinned, pinnedMissing: false, pinnedName: pinned.name };
+  }
+  return { list, active: list[0], pinnedMissing: Boolean(state.wireless.pinnedId), pinnedName: state.wireless.pinnedName };
+}
+
+const pctTone = pct => (pct === 0 ? "danger" : pct <= 25 ? "warn" : "");
+
+function buildAiUsage() {
+  const providers = AI_SCENARIOS[state.scenario] || AI_SCENARIOS.normal;
+  let tightest = null;
+  for (const p of providers) {
+    if (!p.signedIn) continue;
+    for (const w of [
+      { provider: p, win: "5h", pct: p.shortPct, reset: p.shortReset },
+      { provider: p, win: "Wk", pct: p.weekPct, reset: p.weekReset },
+    ]) {
+      if (!tightest || w.pct < tightest.pct) tightest = w;
+    }
+  }
+  const now = nowDate();
+  return {
+    providers,
+    tightest,
+    updatedAt: `${pad2(now.getHours())}:${pad2(now.getMinutes())}:${pad2(now.getSeconds())}`,
+  };
+}
+
+const isCoffeeDue = () => !state.today.coffeeDone && state.clock >= state.today.coffeeTime;
+function todayStats() {
+  const total = state.today.items.length + 1;
+  const done = state.today.items.filter(x => x.done).length + (state.today.coffeeDone ? 1 : 0);
+  return { done, total };
+}
+function resetTodayMidnight() {
+  state.today.items.forEach(x => { x.done = false; });
+  state.today.coffeeDone = false;
+  state.today.water = 0;
+  toast("Midnight reset: checklist cleared for the new day");
+}
+
+const formatMmSs = sec => `${pad2(Math.floor(Math.max(0, sec) / 60))}:${pad2(Math.max(0, sec) % 60)}`;
+function pomoPhaseSubtitle(p) {
+  if (p.phase === "focus") return `Focus ${p.sessionIndex}/${p.sessionsPerCycle}`;
+  if (p.phase === "short") return "Short break";
+  return "Long break";
+}
+function pomoDurationSec(p, phase) {
+  if (phase === "focus") return p.focusMin * 60;
+  if (phase === "short") return p.shortBreakMin * 60;
+  return p.longBreakMin * 60;
+}
+function pomoToggle() {
+  const p = state.pomodoro;
+  if (p.remainingSec <= 0) {
+    p.totalSec = pomoDurationSec(p, p.phase);
+    p.remainingSec = p.totalSec;
+  }
+  p.running = !p.running;
+}
+function pomoAddMinute() {
+  const p = state.pomodoro;
+  p.remainingSec += 60;
+  p.totalSec = Math.max(p.totalSec, p.remainingSec);
+  toast("Added +1 min");
+}
+function pomoReset() {
+  const p = state.pomodoro;
+  p.running = false;
+  p.totalSec = pomoDurationSec(p, p.phase);
+  p.remainingSec = p.totalSec;
+}
+function pomoAdvance(completedByTimer) {
+  const p = state.pomodoro;
+  if (p.phase === "focus") {
+    if (completedByTimer) {
+      p.todaySessions += 1;
+      p.weekDays[p.weekDays.length - 1].sessions += 1;
+    }
+    p.phase = p.sessionIndex >= p.sessionsPerCycle ? "long" : "short";
+  } else if (p.phase === "short") {
+    p.sessionIndex = Math.min(p.sessionsPerCycle, p.sessionIndex + 1);
+    p.phase = "focus";
+  } else {
+    p.sessionIndex = 1;
+    p.phase = "focus";
+  }
+  p.totalSec = pomoDurationSec(p, p.phase);
+  p.remainingSec = p.totalSec;
+  p.running = false;
+  if (completedByTimer && p.notify) {
+    showWinNotifCustom("\uE916", "Pomodoro — Phase Complete", `Up next: ${pomoPhaseSubtitle(p)} (${formatMmSs(p.totalSec)})`);
+  }
+}
+
 /* =====================================================================
    Commands (mock behaviour: settings links and refreshes only show a toast)
    ===================================================================== */
@@ -604,29 +821,95 @@ const PAGES = {
         { icon: "", title: "Wireless Device Batteries", subtitle: "View battery levels of Bluetooth, BLE, AirPods, Logitech LIGHTSPEED/Bolt/Unifying, and Xbox devices", tags: ["DockPulse"], cmd: { name: "Wireless Devices", ...go("wireless") } },
         { icon: "", title: "Network Usage (Today & This Month)", subtitle: "View network data consumption and usage graphs for today (since midnight) and this month", tags: ["DockPulse"], cmd: { name: "Network Usage", ...go("network") } },
         { icon: "", title: "Prayer Times", subtitle: "Countdown to next prayer time with selectable regions, calculation methods, and notifications", tags: ["DockPulse"], cmd: { name: "Prayer Times", ...go("prayer") } },
+        { icon: "\uE99A", title: "AI Usage Limits", subtitle: "5-hour session and weekly remaining limits for Claude, Antigravity, and Codex", tags: ["DockPulse"], cmd: { name: "AI Usage", ...go("aiUsage") } },
+        { icon: "\uE9D5", title: "Today — Daily Checklist", subtitle: "Daily habits, water counter, coffee reminder, and midnight-resetting tasks", tags: ["DockPulse"], cmd: { name: "Today", ...go("today") } },
+        { icon: "\uE916", title: "Pomodoro Timer", subtitle: "Focus timer ring, breaks, session stats, and quick Dock controls", tags: ["DockPulse"], cmd: { name: "Pomodoro", ...go("pomodoro") } },
+        { icon: "\uE8B7", title: "Open Working Folder", subtitle: "Open your working folder in File Explorer with one click", tags: ["DockPulse"], cmd: { name: "Open in File Explorer", run: wfOpenExplorer } },
       ],
     };
   },
 
+  workFolderSettings() {
+    const wf = state.workFolder;
+    return {
+      kind: "content",
+      name: "Change Folder",
+      title: "Working Folder",
+      icon: "\uE8B7",
+      content: [{
+        form: {
+          title: "Working Folder",
+          desc: "The Dock band opens this folder in File Explorer with one click.",
+          fields: [
+            { id: "path", type: "text", label: "Folder path", value: wf.path, placeholder: "C:\\Dev\\MyProject" },
+          ],
+          actions: [
+            { id: "save", label: "Save Folder", primary: true, submit: true },
+            { id: "cancel", label: "Cancel" },
+          ],
+          onAction(actionId, vals) {
+            if (actionId === "cancel") { goBack(); return; }
+            const p = String(vals.path || "").trim().replace(/^"|"$/g, "").replace(/[\\/]+$/, "");
+            if (!p) return "Enter a folder path.";
+            // The real form checks Directory.Exists; the mock treats paths containing "missing" as not found
+            if (/missing/i.test(p)) return `Folder not found: ${p}`;
+            wf.path = /^[A-Za-z]:$/.test(p) ? p + "\\" : p;
+            goBack();
+            toast(`Working folder: ${wf.path}`);
+          },
+        },
+      }],
+    };
+  },
+
   wireless() {
-    const list = devices();
+    const w = resolveWireless();
     const items = [];
-    if (list.length === 0) {
+    if (w.list.length === 0) {
       items.push({ icon: "", title: "No wireless devices with battery reporting found", subtitle: "Connect a Bluetooth/BLE device, Logitech LIGHTSPEED/Bolt/Unifying device, or Xbox controller", cmd: uri("Open Bluetooth Settings", "ms-settings:bluetooth") });
     } else {
-      for (const d of list) {
-        const tags = [`${d.pct}%`];
-        if (d.charging) tags.push("Wired / Charging"); else if (d.pct <= 20) tags.push("Low Battery");
+      if (w.pinnedMissing && w.active) {
         items.push({
+          section: "Dock Selection",
+          icon: "\uE7BA",
+          title: `${w.pinnedName} (Disconnected)`,
+          subtitle: `Pinned for Dock • Falling back to ${w.active.name}`,
+          tags: [{ text: "Pinned", tone: "warn" }, { text: "Offline", tone: "danger" }],
+          cmd: { name: `Pin ${w.active.name} Instead`, run: () => { state.wireless = { pinnedId: w.active.id, pinnedName: w.active.name }; toast(`Dock now shows ${w.active.name}`); } },
+          more: [
+            { icon: "\uE72C", ...refresh("Refresh Battery Levels") },
+            { icon: "\uE713", ...uri("Open Bluetooth Settings", "ms-settings:bluetooth") },
+          ],
+        });
+      }
+      for (const d of w.list) {
+        const isPinned = d.id === state.wireless.pinnedId;
+        const isFallback = w.pinnedMissing && w.active && d.id === w.active.id;
+        const tags = [`${d.pct}%`];
+        if (isPinned && !w.pinnedMissing) tags.push({ text: "Shown in Dock", tone: "accent" });
+        else if (isFallback) tags.push({ text: "Fallback in Dock", tone: "warn" });
+        if (d.charging) tags.push({ text: "Wired / Charging", tone: "ok" });
+        else if (d.pct <= 20) tags.push({ text: "Low Battery", tone: "danger" });
+        items.push({
+          section: w.pinnedMissing ? "Connected Devices" : "",
           icon: deviceGlyph(d.kind), title: d.name, tags,
           subtitle: d.detail ? `${d.conn} • ${d.detail}` : `${d.conn} • Battery: ${d.pct}%`,
-          cmd: uri("Open Bluetooth Settings", "ms-settings:bluetooth"),
-          more: [{ icon: "", ...refresh("Refresh Battery Levels") }],
+          cmd: {
+            name: isPinned ? "Shown in Dock" : "Show in Dock",
+            run: () => {
+              state.wireless = { pinnedId: d.id, pinnedName: d.name };
+              toast(isPinned ? `${d.name} is already shown in Dock` : `Dock now shows ${d.name}`);
+            },
+          },
+          more: [
+            { icon: "\uE713", ...uri("Open Bluetooth Settings", "ms-settings:bluetooth") },
+            { icon: "\uE72C", ...refresh("Refresh Battery Levels") },
+          ],
         });
       }
     }
-    items.push({ icon: "", title: "Refresh Wireless Battery Levels", subtitle: "Force an immediate Bluetooth, GATT, Logitech HID++, and XInput scan", cmd: refresh("Refresh Now") });
-    items.push({ icon: "", title: "Open Windows Bluetooth & Devices Settings", subtitle: "Manage paired devices in Windows Settings", cmd: uri("Open Bluetooth Settings", "ms-settings:bluetooth") });
+    items.push({ section: w.pinnedMissing ? "Actions" : "", icon: "", title: "Refresh Wireless Battery Levels", subtitle: "Force an immediate Bluetooth, GATT, Logitech HID++, and XInput scan", cmd: refresh("Refresh Now") });
+    items.push({ section: w.pinnedMissing ? "Actions" : "", icon: "", title: "Open Windows Bluetooth & Devices Settings", subtitle: "Manage paired devices in Windows Settings", cmd: uri("Open Bluetooth Settings", "ms-settings:bluetooth") });
     return { kind: "list", name: "Wireless Devices", title: "Wireless Device Batteries", icon: "", placeholder: "Filter wireless devices...", items };
   },
 
@@ -635,7 +918,7 @@ const PAGES = {
     const peakHour = formatPeakHour(s.hourly), peakDay = formatPeakDay(s.daily, s.monthAbbr);
     const avg = Math.floor(s.totalMonth / Math.max(1, s.curDay));
     // Details charts are rendered with isDarkTheme: true in NetworkUsagePage.cs, in both themes
-    const small = { dark: true, w: 400, h: 185 };
+    const small = { dark: true, w: 320, h: 185 };
     const charts = {
       today: { title: "Today Hourly", subtitle: `SINCE 00:00  |  PEAK: ${peakHour.toUpperCase()}`, buckets: s.hourly, active: s.curHour, ...small },
       month: { title: `${s.monthLabel} Daily`, subtitle: `PEAK: ${peakDay.toUpperCase()}  |  AVG: ${formatBytes(avg)}/DAY`, buckets: s.daily, active: s.curDay - 1, ...small },
@@ -774,18 +1057,470 @@ const PAGES = {
     });
     return { kind: "list", name: "Calculation Method", title: "Prayer Calculation Method", icon: "", placeholder: "Filter calculation methods or Asr school...", items: [schoolItem, ...methodItems] };
   },
+
+  aiUsage() {
+    const ai = buildAiUsage();
+    const charts = {};
+    const items = [];
+    for (const p of ai.providers) {
+      const key = "ai-" + p.id;
+      charts[key] = { kind: "aiBars", provider: p, dark: true, w: 300, h: 175 };
+      if (!p.signedIn) {
+        const sub = p.unavailableSub || "No usage data available";
+        items.push({
+          icon: "\uE946",
+          title: p.name,
+          subtitle: sub,
+          tags: [{ text: "No data", tone: "warn" }],
+          details: {
+            title: p.name,
+            body: `![${p.name} Usage](chart:${key})\n\n**Status:** ${sub}  \n**Source:** ${p.plan}`,
+          },
+          cmd: refresh(`Refresh ${p.name}`),
+          more: [
+            { icon: "\uE72C", ...refresh("Refresh All AI Usage") },
+            { icon: "\uE774", ...uri(`Open ${p.name} Settings`, p.url) },
+          ],
+        });
+        continue;
+      }
+      const limitHit = p.shortPct === 0 || p.weekPct === 0;
+      const age = p.age || "updated 3 min ago";
+      items.push({
+        icon: limitHit ? "\uE7BA" : "\uE99A",
+        title: p.name,
+        subtitle: limitHit
+          ? `Limit reached  •  5h resets in ${p.shortReset}  •  Weekly resets in ${p.weekReset}  •  ${age}`
+          : `5h resets in ${p.shortReset}  •  Weekly resets in ${p.weekReset}  •  ${age}`,
+        tags: [
+          { text: `5h ${p.shortPct}%`, tone: pctTone(p.shortPct) },
+          { text: `Weekly ${p.weekPct}%`, tone: pctTone(p.weekPct) },
+        ],
+        details: {
+          title: p.name,
+          body: `![${p.name} Usage](chart:${key})\n\n**Source:** ${p.plan}  \n**5-Hour Window:** ${p.shortPct}% remaining (resets in ${p.shortReset})  \n**Weekly Limit:** ${p.weekPct}% remaining (resets in ${p.weekReset})  \n_${age}_`,
+        },
+        cmd: refresh(`Refresh ${p.name}`),
+        more: [
+          { icon: "\uE72C", ...refresh("Refresh All AI Usage") },
+          { icon: "\uE774", ...uri(`Open ${p.name} Usage`, p.url) },
+        ],
+      });
+    }
+    items.push({
+      icon: "\uE8C8",
+      title: "Set up Claude usage",
+      subtitle: "Copy status-line script & ~/.claude/settings.json snippet to clipboard",
+      tags: [{ text: "Claude Code", tone: "accent" }],
+      details: {
+        title: "Set up Claude usage",
+        body: "DockPulse reads Claude Code's local usage cache at `~/.claude/dockpulse-usage.json` and never edits `~/.claude/settings.json` or reads credentials.\n\n**1. Save the status-line script** to `C:/Users/<you>/.claude/dockpulse-statusline.ps1`.\n\n**2. Add `statusLine` to** `C:/Users/<you>/.claude/settings.json`.\n\nPress **Enter** on this row to copy both snippets to your clipboard.",
+      },
+      cmd: { name: "Copy Setup Snippet", run: () => toast("Copied Claude statusLine script & settings.json snippet") },
+    });
+    const fallbackKey = ai.tightest ? `ai-${ai.tightest.provider.id}` : `ai-${ai.providers[0].id}`;
+    const fallbackTitle = ai.tightest ? ai.tightest.provider.name : ai.providers[0].name;
+    items.push({
+      icon: "\uE72C",
+      title: "Refresh AI Usage",
+      subtitle: `Last checked at ${ai.updatedAt}`,
+      details: {
+        title: `${fallbackTitle} (Tightest Limit)`,
+        body: `![AI Usage](chart:${fallbackKey})\n\nReads local usage snapshots for Claude (~/.claude/dockpulse-usage.json) and Codex (~/.codex/sessions). Strictly offline.`,
+      },
+      cmd: refresh("Refresh AI Usage"),
+    });
+    return { kind: "list", name: "AI Usage", title: "AI Usage Limits", icon: "\uE99A", placeholder: "Filter AI providers...", showDetails: true, charts, items };
+  },
+
+  today() {
+    const t = state.today;
+    const due = isCoffeeDue();
+    const waterTags = t.water >= t.waterGoal
+      ? [{ text: `${t.water}/${t.waterGoal}`, tone: "ok" }, { text: "Goal Met", tone: "ok" }]
+      : [{ text: `${t.water}/${t.waterGoal}`, tone: "accent" }];
+    const coffeeTags = t.coffeeDone
+      ? [{ text: "Done", tone: "ok" }, hhmm(t.coffeeTime)]
+      : due
+        ? [{ text: "Coffee Time", tone: "warn" }, hhmm(t.coffeeTime)]
+        : [hhmm(t.coffeeTime)];
+
+    const items = [
+      {
+        section: "Daily Habits",
+        icon: "\uEB42",
+        title: "Water",
+        subtitle: `${t.water} of ${t.waterGoal} glasses today • Enter to add 1`,
+        tags: waterTags,
+        cmd: {
+          name: "+1 Glass",
+          run: () => {
+            t.water += 1;
+            toast(t.water === t.waterGoal ? `Water goal met (${t.water}/${t.waterGoal})!` : `Water: ${t.water}/${t.waterGoal}`);
+          },
+        },
+        more: [
+          { icon: "\uE738", name: "Remove 1 Glass", run: () => { if (t.water > 0) { t.water -= 1; toast(`Water: ${t.water}/${t.waterGoal}`); } else toast("Water is already 0"); } },
+          { icon: "\uE72C", name: "Reset Water to 0", run: () => { t.water = 0; toast("Water reset to 0"); } },
+          { icon: "\uE713", name: "Set Water Goal & Coffee Time", ...go("todaySettings") },
+        ],
+      },
+      {
+        section: "Daily Habits",
+        icon: t.coffeeDone ? "\uE73A" : "\uEC32",
+        title: "Coffee",
+        subtitle: t.coffeeDone
+          ? `Checked off • Scheduled for ${hhmm(t.coffeeTime)}`
+          : due
+            ? `Due since ${hhmm(t.coffeeTime)} • Enter to check off`
+            : `Scheduled for ${hhmm(t.coffeeTime)} • Dock alerts at ${hhmm(t.coffeeTime)}`,
+        tags: coffeeTags,
+        cmd: {
+          name: t.coffeeDone ? "Uncheck Coffee" : "Check Off Coffee",
+          run: () => { t.coffeeDone = !t.coffeeDone; toast(t.coffeeDone ? "Coffee checked off" : "Coffee unchecked"); },
+        },
+        more: [
+          { icon: "\uE713", name: "Set Coffee Time & Water Goal", ...go("todaySettings") },
+        ],
+      },
+      ...t.items.map(it => ({
+        section: "Daily Checklist (resets at 00:00)",
+        icon: it.done ? "\uE73A" : "\uE739",
+        title: it.title,
+        subtitle: it.done ? "Completed today • Resets at midnight" : "Daily item • Enter to check off",
+        tags: it.done ? [{ text: "Done", tone: "ok" }] : [],
+        cmd: { name: it.done ? "Uncheck" : "Check Off", run: () => { it.done = !it.done; } },
+        more: [
+          { icon: "\uE70F", name: "Edit Item...", run: () => { t.editingId = it.id; openPage("todayEdit", false); } },
+          { icon: "\uE74D", name: "Remove Item", run: () => { t.items = t.items.filter(x => x.id !== it.id); toast(`Removed “${it.title}”`); } },
+        ],
+      })),
+      {
+        section: "Manage",
+        icon: "\uE710",
+        title: "Add Daily Item",
+        subtitle: "Open Adaptive Card form or type directly in the search box above",
+        cmd: { name: "Add Item", ...go("todayAdd") },
+      },
+      {
+        section: "Manage",
+        icon: "\uE713",
+        title: "Daily Settings",
+        subtitle: `Coffee at ${hhmm(t.coffeeTime)}  •  Water goal: ${t.waterGoal} glasses`,
+        tags: [hhmm(t.coffeeTime), `${t.waterGoal} glasses`],
+        cmd: { name: "Edit Settings", ...go("todaySettings") },
+      },
+      {
+        section: "Manage",
+        icon: "\uE72C",
+        title: "Reset Today's Checklist",
+        subtitle: "Reset all items to unchecked and water to 0 (same as local midnight reset)",
+        cmd: { name: "Reset Now", run: resetTodayMidnight },
+      },
+    ];
+
+    return {
+      kind: "list",
+      name: "Today",
+      title: "Today — Daily Checklist",
+      icon: "\uE9D5",
+      placeholder: "Filter items or type a new task to quick-add...",
+      items,
+      dynamicItems(raw) {
+        const trimmed = raw.trim();
+        if (!trimmed) return [];
+        const exists = t.items.some(x => x.title.toLowerCase() === trimmed.toLowerCase());
+        if (exists) return [];
+        return [{
+          section: "Quick Add",
+          icon: "\uE710",
+          title: `Add “${trimmed}”`,
+          subtitle: "Add as a daily item (resets every day at 00:00)",
+          tags: [{ text: "Quick Add", tone: "accent" }],
+          cmd: {
+            name: "Add Item",
+            run: () => {
+              t.items.push({ id: t.nextId++, title: trimmed, done: false });
+              state.filter = "";
+              toast(`Added “${trimmed}”`);
+            },
+          },
+        }];
+      },
+    };
+  },
+
+  todayAdd() {
+    return {
+      kind: "content",
+      name: "Add Daily Item",
+      title: "Add Daily Checklist Item",
+      icon: "\uE710",
+      content: [{
+        form: {
+          title: "New Daily Item",
+          desc: "Daily items stay in your list and reset to unchecked every day at 00:00 local time.",
+          fields: [
+            { id: "title", type: "text", label: "Item title", placeholder: "e.g. Review pull requests", value: "", required: true },
+          ],
+          actions: [
+            { id: "save", label: "Add Daily Item", primary: true, submit: true },
+            { id: "cancel", label: "Cancel" },
+          ],
+          onAction(actionId, vals) {
+            if (actionId === "cancel") { goBack(); return; }
+            const title = (vals.title || "").trim();
+            if (!title) return "Please enter an item title.";
+            state.today.items.push({ id: state.today.nextId++, title, done: false });
+            goBack();
+            toast(`Added “${title}”`);
+          },
+        },
+      }],
+    };
+  },
+
+  todayEdit() {
+    const item = state.today.items.find(x => x.id === state.today.editingId);
+    return {
+      kind: "content",
+      name: "Edit Daily Item",
+      title: "Edit Daily Checklist Item",
+      icon: "\uE70F",
+      content: [{
+        form: {
+          title: "Edit Daily Item",
+          fields: [
+            { id: "title", type: "text", label: "Item title", value: item ? item.title : "", required: true },
+          ],
+          actions: [
+            { id: "save", label: "Save Changes", primary: true, submit: true },
+            { id: "delete", label: "Remove Item" },
+            { id: "cancel", label: "Cancel" },
+          ],
+          onAction(actionId, vals) {
+            if (actionId === "cancel") { goBack(); return; }
+            if (actionId === "delete" && item) {
+              state.today.items = state.today.items.filter(x => x.id !== item.id);
+              goBack();
+              toast(`Removed “${item.title}”`);
+              return;
+            }
+            const title = (vals.title || "").trim();
+            if (!title) return "Please enter an item title.";
+            if (item) item.title = title;
+            goBack();
+            toast("Item updated");
+          },
+        },
+      }],
+    };
+  },
+
+  todaySettings() {
+    const t = state.today;
+    return {
+      kind: "content",
+      name: "Daily Settings",
+      title: "Today — Daily Settings",
+      icon: "\uE713",
+      content: [{
+        form: {
+          title: "Habits & Schedule",
+          desc: "Configure when the Coffee reminder appears on the Dock band and your daily water target.",
+          fields: [
+            { id: "coffeeTime", type: "time", label: "Coffee reminder time", value: hhmm(t.coffeeTime) },
+            { id: "waterGoal", type: "number", label: "Daily water goal (glasses)", value: t.waterGoal, min: 1, max: 20 },
+          ],
+          actions: [
+            { id: "save", label: "Save Settings", primary: true, submit: true },
+            { id: "cancel", label: "Cancel" },
+          ],
+          onAction(actionId, vals) {
+            if (actionId === "cancel") { goBack(); return; }
+            const goal = parseInt(vals.waterGoal, 10);
+            if (!Number.isFinite(goal) || goal < 1 || goal > 20) return "Water goal must be between 1 and 20 glasses.";
+            if (vals.coffeeTime) t.coffeeTime = T(vals.coffeeTime);
+            t.waterGoal = goal;
+            goBack();
+            toast(`Saved: Coffee ${hhmm(t.coffeeTime)} • Water goal ${t.waterGoal}`);
+          },
+        },
+      }],
+    };
+  },
+
+  pomodoro() {
+    const p = state.pomodoro;
+    const cmds = [
+      { icon: p.running ? "\uE769" : "\uE768", name: p.running ? "Pause Timer" : "Start Timer", run: pomoToggle },
+      { icon: "\uE710", name: "+1 min", run: pomoAddMinute },
+      { icon: "\uE893", name: "Skip Phase", run: () => { pomoAdvance(false); toast(`Skipped to ${pomoPhaseSubtitle(p)}`); } },
+      { icon: "\uE72C", name: "Reset Timer", run: () => { pomoReset(); toast("Timer reset"); } },
+      { icon: "\uE9D2", name: "Stats (Today & This Week)", ...go("pomodoroStats") },
+      { icon: "\uE713", name: "Pomodoro Settings", ...go("pomodoroSettings") },
+    ];
+    return {
+      kind: "content",
+      name: "Pomodoro",
+      title: `Pomodoro  •  ${pomoPhaseSubtitle(p)}`,
+      icon: "\uE916",
+      commands: cmds,
+      content: [
+        { pomo: p },
+        {
+          form: {
+            compact: true,
+            actions: [
+              { id: "toggle", icon: p.running ? "\uE769" : "\uE768", label: p.running ? "Pause" : "Start", primary: true },
+              { id: "plus60", icon: "\uE710", label: "+1 min" },
+              { id: "skip", icon: "\uE893", label: "Skip" },
+              { id: "reset", icon: "\uE72C", label: "Reset" },
+              { id: "stats", icon: "\uE9D2", label: "Stats" },
+              { id: "settings", icon: "\uE713", label: "Settings" },
+            ],
+            onAction(actionId) {
+              if (actionId === "toggle") { pomoToggle(); render(); }
+              else if (actionId === "plus60") { pomoAddMinute(); render(); }
+              else if (actionId === "skip") { pomoAdvance(false); toast(`Skipped to ${pomoPhaseSubtitle(p)}`); render(); }
+              else if (actionId === "reset") { pomoReset(); toast("Timer reset"); render(); }
+              else if (actionId === "stats") { openPage("pomodoroStats", false); }
+              else if (actionId === "settings") { openPage("pomodoroSettings", false); }
+            },
+          },
+        },
+      ],
+    };
+  },
+
+  pomodoroStats() {
+    const p = state.pomodoro;
+    const weekTotal = p.weekDays.reduce((s, d) => s + d.sessions, 0);
+    const todayMins = p.todaySessions * p.focusMin;
+    const weekMins = weekTotal * p.focusMin;
+    const best = p.weekDays.reduce((a, b) => (b.sessions > a.sessions ? b : a), p.weekDays[0]);
+    const avg = (weekTotal / p.weekDays.length).toFixed(1);
+    return {
+      kind: "content",
+      name: "Pomodoro Stats",
+      title: "Pomodoro — Stats",
+      icon: "\uE9D2",
+      commands: [
+        { icon: "\uE916", name: "Back to Timer", run: () => goBack() },
+        { icon: "\uE713", name: "Pomodoro Settings", ...go("pomodoroSettings") },
+      ],
+      content: [
+        { pomoStats: p },
+        {
+          md:
+`### Focus Summary
+| Period | Completed | Focus Time |
+| :--- | ---: | ---: |
+| **Today** | ${p.todaySessions} sessions | ${todayMins} min |
+| **This Week (7d)** | ${weekTotal} sessions | ${(weekMins / 60).toFixed(1)} hrs |
+| **Daily Average** | ${avg} sessions/day | ${Math.round((weekMins / p.weekDays.length))} min/day |
+| **Best Day** | ${best.label} (${best.sessions} sessions) | ${best.sessions * p.focusMin} min |
+
+**Current Cycle:** ${pomoPhaseSubtitle(p)}  •  Focus ${p.focusMin}m / Short ${p.shortBreakMin}m / Long ${p.longBreakMin}m`,
+        },
+        {
+          form: {
+            compact: true,
+            actions: [
+              { id: "timer", icon: "\uE916", label: "Timer", primary: true },
+              { id: "settings", icon: "\uE713", label: "Settings" },
+            ],
+            onAction(actionId) {
+              if (actionId === "timer") goBack();
+              else if (actionId === "settings") openPage("pomodoroSettings", false);
+            },
+          },
+        },
+      ],
+    };
+  },
+
+  pomodoroSettings() {
+    const p = state.pomodoro;
+    return {
+      kind: "content",
+      name: "Pomodoro Settings",
+      title: "Pomodoro Settings",
+      icon: "\uE713",
+      content: [{
+        form: {
+          title: "Timer Durations & Cycle",
+          desc: "Changes apply immediately to upcoming phases (and to the current timer when paused at full duration).",
+          fields: [
+            { row: [
+              { id: "focusMin", type: "number", label: "Focus (minutes)", value: p.focusMin, min: 1, max: 120 },
+              { id: "shortBreakMin", type: "number", label: "Short break (minutes)", value: p.shortBreakMin, min: 1, max: 60 },
+            ] },
+            { row: [
+              { id: "longBreakMin", type: "number", label: "Long break (minutes)", value: p.longBreakMin, min: 1, max: 60 },
+              { id: "sessionsPerCycle", type: "number", label: "Sessions before long break", value: p.sessionsPerCycle, min: 1, max: 8 },
+            ] },
+            { id: "notify", type: "toggle", label: "Send Windows notification when phase ends", value: p.notify },
+          ],
+          actions: [
+            { id: "save", label: "Save Settings", primary: true, submit: true },
+            { id: "cancel", label: "Cancel" },
+          ],
+          onAction(actionId, vals) {
+            if (actionId === "cancel") { goBack(); return; }
+            const focus = parseInt(vals.focusMin, 10);
+            const sb = parseInt(vals.shortBreakMin, 10);
+            const lb = parseInt(vals.longBreakMin, 10);
+            const cyc = parseInt(vals.sessionsPerCycle, 10);
+            if ([focus, sb, lb, cyc].some(n => !Number.isFinite(n) || n < 1)) {
+              return "All durations and cycle count must be 1 or greater.";
+            }
+            const atFull = !p.running && p.remainingSec === p.totalSec;
+            p.focusMin = focus;
+            p.shortBreakMin = sb;
+            p.longBreakMin = lb;
+            p.sessionsPerCycle = Math.min(8, cyc);
+            p.sessionIndex = Math.min(p.sessionIndex, p.sessionsPerCycle);
+            p.notify = Boolean(vals.notify);
+            if (atFull) {
+              p.totalSec = pomoDurationSec(p, p.phase);
+              p.remainingSec = p.totalSec;
+            }
+            goBack();
+            toast(`Saved: ${p.focusMin}/${p.shortBreakMin}/${p.longBreakMin}m (${p.sessionsPerCycle}×)`);
+          },
+        },
+      }],
+    };
+  },
 };
 
 /* =====================================================================
    Dock bands (DockBands/*.cs)
    ===================================================================== */
 function dockBands() {
-  const list = devices();
-  const wireless = list.length === 0
+  const w = resolveWireless();
+  const wireless = !w.active
     ? { icon: "", title: "No BT", subtitle: "Wireless" }
-    : { icon: batteryGlyph(list[0].pct, list[0].charging), title: `${list[0].pct}%${list.length > 1 ? ` (+${list.length - 1})` : ""}`, subtitle: truncate(list[0].name, 18) };
+    : w.pinnedMissing
+      ? { icon: batteryGlyph(w.active.pct, w.active.charging), title: `${w.active.pct}%`, subtitle: `Fallback: ${truncate(w.active.name, 13)}` }
+      : { icon: batteryGlyph(w.active.pct, w.active.charging), title: `${w.active.pct}%`, subtitle: truncate(w.active.name, 18) };
   const net = buildNetwork();
   const pr = buildPrayer();
+  const ai = buildAiUsage();
+  const aiBand = !ai.tightest
+    ? { icon: "\uE99A", title: "AI Usage", subtitle: "No data" }
+    : { icon: ai.tightest.pct === 0 ? "\uE7BA" : "\uE99A", title: `${ai.tightest.provider.name} ${ai.tightest.pct}%`, subtitle: `${ai.tightest.win} • resets ${ai.tightest.reset}` };
+  const td = todayStats();
+  const coffeeDue = isCoffeeDue();
+  const todayBand = coffeeDue
+    ? { icon: "\uEC32", title: "Coffee time", subtitle: `Since ${hhmm(state.today.coffeeTime)} • ${td.done}/${td.total}` }
+    : { icon: "\uE9D5", title: `${td.done}/${td.total} done`, subtitle: `Water ${state.today.water}/${state.today.waterGoal}` };
+  const p = state.pomodoro;
+  const pomoSub = p.running
+    ? pomoPhaseSubtitle(p)
+    : (p.remainingSec < p.totalSec ? `Paused • ${pomoPhaseSubtitle(p)}` : pomoPhaseSubtitle(p));
+
   return [
     { label: "Wireless Battery", page: "wireless", ...wireless, more: [
       { icon: "", ...refresh("Refresh Batteries") },
@@ -801,7 +1536,66 @@ function dockBands() {
       { icon: "", ...toggleNotif(`Prayer Notifications (${state.prayer.notifications ? "On" : "Off"})`) },
       { icon: "", ...refresh("Refresh Prayer Times") },
     ] },
+    { label: "AI Usage Limits", page: "aiUsage", ...aiBand, more: [
+      { icon: "\uE72C", ...refresh("Refresh AI Usage") },
+      { icon: "\uE774", ...uri("Open Claude Usage", "https://claude.ai/settings/usage") },
+      { icon: "\uE774", ...uri("Open Codex Usage", "https://chatgpt.com/codex/settings/usage") },
+    ] },
+    { label: "Today — Daily Checklist", page: "today", ...todayBand, more: [
+      { icon: "\uEB42", name: `Add 1 Glass of Water (${state.today.water}/${state.today.waterGoal})`, run: () => { state.today.water += 1; toast(`Water: ${state.today.water}/${state.today.waterGoal}`); } },
+      { icon: "\uEC32", name: coffeeDue ? "Check Off Coffee" : `Toggle Coffee (${state.today.coffeeDone ? "Done" : hhmm(state.today.coffeeTime)})`, run: () => { state.today.coffeeDone = !state.today.coffeeDone; toast(state.today.coffeeDone ? "Coffee checked off" : "Coffee unchecked"); } },
+      { icon: "\uE710", name: "Add Daily Item...", ...go("todayAdd") },
+      { icon: "\uE713", name: "Daily Settings...", ...go("todaySettings") },
+      { icon: "\uE72C", name: "Reset Today's Checklist", run: resetTodayMidnight },
+    ] },
+    { label: "Pomodoro", page: "pomodoro", icon: "\uE916", title: formatMmSs(p.remainingSec), subtitle: pomoSub,
+      quickAction: {
+        icon: p.running ? "\uE769" : "\uE768",
+        title: p.running ? "Pause Pomodoro" : "Start Pomodoro",
+        run: pomoToggle,
+      },
+      more: [
+        { icon: p.running ? "\uE769" : "\uE768", name: p.running ? "Pause Timer" : "Start Timer", run: pomoToggle },
+        { icon: "\uE710", name: "+1 min", run: pomoAddMinute },
+        { icon: "\uE893", name: "Skip Phase", run: () => { pomoAdvance(false); toast(`Skipped to ${pomoPhaseSubtitle(p)}`); } },
+        { icon: "\uE72C", name: "Reset Timer", run: () => { pomoReset(); toast("Timer reset"); } },
+        { icon: "\uE9D2", name: "Pomodoro Stats", ...go("pomodoroStats") },
+        { icon: "\uE713", name: "Pomodoro Settings", ...go("pomodoroSettings") },
+      ],
+    },
+    wfBand(),
   ];
+}
+
+/* Working Folder band (DockBands/WorkingFolderDockBandItem.cs): one click opens the folder in File Explorer */
+const wfExists = () => state.scenario !== "folder_missing";
+function wfName(path) {
+  const trimmed = path.replace(/[\\/]+$/, "");
+  const i = trimmed.lastIndexOf("\\");
+  return i < 0 || /^[A-Za-z]:$/.test(trimmed) ? path : trimmed.slice(i + 1);
+}
+function wfParent(path) {
+  const trimmed = path.replace(/[\\/]+$/, "");
+  if (/^[A-Za-z]:$/.test(trimmed)) return "Drive";
+  const i = trimmed.lastIndexOf("\\");
+  const parent = trimmed.slice(0, i);
+  return /^[A-Za-z]:$/.test(parent) ? parent + "\\" : parent;
+}
+function wfOpenExplorer() {
+  if (!wfExists()) { toast(`Folder not found: ${state.workFolder.path}`); return; }
+  toast(`Would open ${state.workFolder.path} in File Explorer`);
+}
+function wfBand() {
+  const path = state.workFolder.path;
+  const more = [
+    { icon: "\uE943", name: "Open in VS Code", run: () => toast(`Would open ${path} in VS Code`) },
+    { icon: "\uE756", name: "Open in Terminal", run: () => toast(`Would open a terminal in ${path}`) },
+    { icon: "\uE8C8", name: "Copy Path", run: () => toast(`Copied ${path}`) },
+    { icon: "\uE70F", name: "Change Folder...", ...go("workFolderSettings") },
+  ];
+  return wfExists()
+    ? { label: "Working Folder", run: wfOpenExplorer, icon: "\uE8B7", title: wfName(path), subtitle: wfParent(path), more }
+    : { label: "Working Folder", page: "workFolderSettings", icon: "\uE7BA", title: "Folder missing", subtitle: path, more };
 }
 
 /* =====================================================================
@@ -826,7 +1620,7 @@ function drawChart(cv, spec) {
   const w = spec.w || 600, h = spec.h || 260, P = spec.dark ? PALETTES.dark : PALETTES.light;
   const dpr = Math.max(1, window.devicePixelRatio || 1);
   cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr);
-  cv.style.maxWidth = w + "px";
+  sizeChartCanvas(cv, w);
   const c = cv.getContext("2d");
   c.setTransform(dpr, 0, 0, dpr, 0, 0);
   c.textBaseline = "top";
@@ -851,9 +1645,15 @@ function drawChart(cv, spec) {
   c.fillText(upperTitle, padL, big ? 14 : 16);
   if (spec.subtitle) { c.font = FONT1; c.fillStyle = rgb(P.text2); c.fillText(spec.subtitle, padL, big ? 34 : 30); }
 
+  // Same rule as NetworkChartRenderer (6 px per character): if the small title still runs into the legend,
+  // the legend moves to its own row under the subtitle
+  const px = s => s.length * 6 - 1;
+  const downSwPx = w - padR - px(upText) - swGap - sw - lgGap - px(downText) - swGap - sw;
+  const legendY = !big && padL + px(upperTitle) + 12 > downSwPx ? 44 : 16;
+
   c.font = FONT1;
-  box(downSwX, 17, sw, sw, 2, P.down); c.fillStyle = rgb(P.text1); c.fillText(downText, downX, 16);
-  box(upSwX, 17, sw, sw, 2, P.up); c.fillStyle = rgb(P.text1); c.fillText(upText, upX, 16);
+  box(downSwX, legendY + 1, sw, sw, 2, P.down); c.fillStyle = rgb(P.text1); c.fillText(downText, downX, legendY);
+  box(upSwX, legendY + 1, sw, sw, 2, P.up); c.fillStyle = rgb(P.text1); c.fillText(upText, upX, legendY);
 
   const plotL = 68, plotR = w - padR, plotT = 58, plotB = h - 34;
   const plotW = Math.max(40, plotR - plotL), plotH = Math.max(40, plotB - plotT);
@@ -1134,6 +1934,227 @@ function drawPrayerScheduleCard(cv, p) {
 }
 
 /* =====================================================================
+   AI Usage Limits card renderer (details pane PNG in C#)
+   ===================================================================== */
+// Command Palette scales ImageContent down to fit, but a Markdown image in a details pane is shown at
+// its natural size and clipped, so details-pane charts are drawn full size here and the pane clips them.
+function sizeChartCanvas(cv, w) {
+  if (cv.closest && cv.closest(".details")) {
+    cv.style.width = w + "px";
+    cv.style.maxWidth = "none";
+  } else {
+    cv.style.maxWidth = w + "px";
+  }
+}
+
+function drawAiUsageCard(cv, spec) {
+  const w = spec.w || 300, h = spec.h || 175;
+  const P = spec.dark ? PALETTES.dark : PALETTES.light;
+  const p = spec.provider;
+  const dpr = Math.max(1, window.devicePixelRatio || 1);
+  cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr);
+  sizeChartCanvas(cv, w);
+  const c = cv.getContext("2d");
+  c.setTransform(dpr, 0, 0, dpr, 0, 0);
+  c.textBaseline = "top";
+  const box = (x, y, bw, bh, r, col) => { c.beginPath(); c.roundRect(x, y, bw, bh, r); c.fillStyle = col; c.fill(); };
+
+  c.beginPath(); c.roundRect(0.5, 0.5, w - 1, h - 1, 12);
+  c.fillStyle = rgb(P.cardBg); c.fill(); c.strokeStyle = rgb(P.cardBorder); c.lineWidth = 1; c.stroke();
+
+  const padL = 18, padR = 18, barW = w - padL - padR;
+  c.font = FONT2; c.fillStyle = rgb(P.text1); c.textAlign = "left";
+  c.fillText(`${p.name.toUpperCase()} USAGE`, padL, 14);
+  c.font = FONT1; c.fillStyle = rgb(P.text2);
+  c.fillText(p.plan.toUpperCase(), padL, 34);
+
+  if (!p.signedIn) {
+    box(padL, 68, barW, 12, 6, rgb(P.trackElapsed));
+    box(padL, 122, barW, 12, 6, rgb(P.trackElapsed));
+    c.font = FONT1; c.fillStyle = rgb(P.text2); c.textAlign = "center";
+    c.fillText(p.unavailableCard || "NO DATA AVAILABLE", w / 2, 95);
+    c.textAlign = "left";
+    return;
+  }
+
+  const rows = [
+    { label: "5-HOUR WINDOW", pct: p.shortPct, reset: p.shortReset, col: rgb(P.down), y: 60 },
+    { label: "WEEKLY LIMIT", pct: p.weekPct, reset: p.weekReset, col: rgb(P.up), y: 115 },
+  ];
+  for (const row of rows) {
+    const fillCol = row.pct === 0 ? "rgb(244, 63, 94)" : row.pct <= 25 ? "rgb(245, 158, 11)" : row.col;
+    c.font = FONT1;
+    c.fillStyle = rgb(P.text1); c.textAlign = "left";
+    c.fillText(row.label, padL, row.y);
+    c.fillStyle = row.pct === 0 ? "rgb(251, 113, 133)" : rgb(P.text1); c.textAlign = "right";
+    c.fillText(`${row.pct}% REMAINING`, w - padR, row.y);
+
+    const barY = row.y + 15, barH = 11;
+    box(padL, barY, barW, barH, 5.5, rgb(P.trackElapsed));
+    if (row.pct > 0) {
+      const fw = Math.max(barH, Math.round(barW * Math.min(100, row.pct) / 100));
+      box(padL, barY, fw, barH, 5.5, fillCol);
+    }
+
+    c.textAlign = "left";
+    c.fillStyle = rgb(P.text2);
+    c.fillText(`RESETS IN ${row.reset.toUpperCase()}`, padL, barY + 16);
+    if (row.pct === 0) {
+      c.textAlign = "right";
+      c.fillStyle = "rgb(251, 113, 133)";
+      c.fillText("LIMIT REACHED", w - padR, barY + 16);
+    }
+  }
+  c.textAlign = "left";
+}
+
+/* =====================================================================
+   Pomodoro card & weekly stats renderers (PNG via C# renderer)
+   ===================================================================== */
+function drawPomodoroCard(cv, p) {
+  const w = 480, h = 340;
+  const dark = isDark();
+  const dpr = Math.max(1, window.devicePixelRatio || 1);
+  cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr);
+  const c = cv.getContext("2d");
+  c.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+  const bg = dark ? "#1c2028" : "#ffffff";
+  const border = dark ? "#343b4a" : "#e2e8f0";
+  const fg = dark ? "#f1f5f9" : "#22252a";
+  const muted = dark ? "#9ca8bc" : "#64748b";
+  const track = dark ? "#2d3545" : "#e5e7eb";
+  const ringCol = p.phase === "focus"
+    ? (dark ? "#38bdf8" : "#2b2f36")
+    : (dark ? "#34d399" : "#0d9488");
+
+  c.beginPath(); c.roundRect(0.5, 0.5, w - 1, h - 1, 12);
+  c.fillStyle = bg; c.fill(); c.strokeStyle = border; c.lineWidth = 1; c.stroke();
+
+  // Header
+  c.textBaseline = "top";
+  c.textAlign = "left";
+  c.font = '700 18px "Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif';
+  c.fillStyle = fg;
+  c.fillText("Pomodoro", 24, 18);
+
+  c.font = FONT1;
+  c.textAlign = "right";
+  c.fillStyle = muted;
+  const statusTag = p.running ? "RUNNING" : (p.remainingSec < p.totalSec ? "PAUSED" : "READY");
+  c.fillText(`${pomoPhaseSubtitle(p).toUpperCase()}  •  ${statusTag}`, w - 24, 24);
+
+  // Progress ring
+  const cx = w / 2, cy = 186, r = 108;
+  const frac = p.totalSec > 0 ? Math.max(0, Math.min(1, p.remainingSec / p.totalSec)) : 0;
+
+  c.lineWidth = 7;
+  c.lineCap = "round";
+  c.strokeStyle = track;
+  c.beginPath(); c.arc(cx, cy, r, 0, Math.PI * 2); c.stroke();
+
+  if (frac > 0) {
+    const start = -Math.PI / 2;
+    const end = start + Math.PI * 2 * frac;
+    c.strokeStyle = ringCol;
+    c.beginPath(); c.arc(cx, cy, r, start, end, false); c.stroke();
+  }
+
+  // Big MM:SS countdown
+  c.textAlign = "center";
+  c.textBaseline = "middle";
+  c.font = '400 54px "Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif';
+  c.fillStyle = fg;
+  c.fillText(formatMmSs(p.remainingSec), cx, cy - 12);
+
+  // 4 session dashes under the time (completed = full, current = elapsed fraction)
+  const count = p.sessionsPerCycle;
+  const dashW = count <= 4 ? 32 : Math.max(18, Math.floor(144 / count));
+  const gap = 8;
+  const totalDashW = count * dashW + (count - 1) * gap;
+  const dashX0 = cx - totalDashW / 2;
+  const dashY = cy + 34;
+  const elapsedFocus = p.phase === "focus" && p.totalSec > 0
+    ? Math.max(0.18, Math.min(1, 1 - (p.remainingSec / p.totalSec)))
+    : 0;
+  const completedCount = p.phase === "long" ? count : (p.phase === "short" ? p.sessionIndex : p.sessionIndex - 1);
+
+  for (let i = 0; i < count; i++) {
+    const x = dashX0 + i * (dashW + gap);
+    c.beginPath(); c.roundRect(x, dashY, dashW, 5, 2.5);
+    c.fillStyle = track; c.fill();
+
+    let fillRatio = 0;
+    if (i < completedCount) fillRatio = 1;
+    else if (p.phase === "focus" && i === p.sessionIndex - 1) fillRatio = elapsedFocus;
+
+    if (fillRatio > 0) {
+      const fw = Math.max(6, Math.round(dashW * fillRatio));
+      c.beginPath(); c.roundRect(x, dashY, fw, 5, 2.5);
+      c.fillStyle = ringCol; c.fill();
+    }
+  }
+}
+
+function drawPomodoroStatsChart(cv, p) {
+  const w = 600, h = 220;
+  const P = PALETTES.dark;
+  const dpr = Math.max(1, window.devicePixelRatio || 1);
+  cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr);
+  cv.style.maxWidth = w + "px";
+  const c = cv.getContext("2d");
+  c.setTransform(dpr, 0, 0, dpr, 0, 0);
+  c.textBaseline = "top";
+  const box = (x, y, bw, bh, r, col) => { c.beginPath(); c.roundRect(x, y, bw, bh, r); c.fillStyle = col; c.fill(); };
+
+  c.beginPath(); c.roundRect(0.5, 0.5, w - 1, h - 1, 12);
+  c.fillStyle = rgb(P.cardBg); c.fill(); c.strokeStyle = rgb(P.cardBorder); c.lineWidth = 1; c.stroke();
+
+  const weekTotal = p.weekDays.reduce((s, d) => s + d.sessions, 0);
+  const padL = 18, padR = 18;
+  c.font = FONT2; c.fillStyle = rgb(P.text1); c.textAlign = "left";
+  c.fillText("POMODORO SESSIONS (7 DAYS)", padL, 14);
+  c.font = FONT1; c.fillStyle = rgb(P.text2);
+  c.fillText(`TODAY: ${p.todaySessions} SESSIONS (${p.todaySessions * p.focusMin}M)  |  WEEK: ${weekTotal} SESSIONS`, padL, 34);
+
+  const plotL = 44, plotR = w - padR, plotT = 58, plotB = h - 32;
+  const plotW = plotR - plotL, plotH = plotB - plotT;
+  const maxS = Math.max(4, ...p.weekDays.map(d => d.sessions));
+  const yMax = Math.ceil(maxS / 2) * 2;
+
+  c.strokeStyle = rgb(P.grid); c.setLineDash([3, 3]);
+  for (const y of [plotT, plotT + Math.floor(plotH / 2)]) {
+    c.beginPath(); c.moveTo(plotL, y + 0.5); c.lineTo(plotR, y + 0.5); c.stroke();
+  }
+  c.setLineDash([]); c.strokeStyle = rgb(P.axis);
+  c.beginPath(); c.moveTo(plotL, plotB + 0.5); c.lineTo(plotR, plotB + 0.5); c.stroke();
+
+  c.fillStyle = rgb(P.text2); c.textAlign = "right";
+  c.fillText(String(yMax), plotL - 8, plotT - 4);
+  c.fillText(String(yMax / 2), plotL - 8, plotT + Math.floor(plotH / 2) - 4);
+  c.fillText("0", plotL - 8, plotB - 4);
+
+  const count = p.weekDays.length;
+  const slot = plotW / count;
+  const barW = Math.min(34, Math.floor(slot * 0.52));
+  p.weekDays.forEach((d, i) => {
+    const cx = plotL + Math.round((i + 0.5) * slot), left = cx - Math.floor(barW / 2);
+    const isToday = i === count - 1;
+    box(left, plotT + 2, barW, plotH - 2, 4, rgb(P.trackElapsed));
+    if (d.sessions > 0) {
+      const bh = Math.max(6, Math.round((d.sessions / yMax) * (plotH - 2)));
+      box(left, plotB - bh, barW, bh, 4, rgb(isToday ? P.downHi : P.down));
+      c.font = FONT1; c.textAlign = "center"; c.fillStyle = rgb(P.text1);
+      c.fillText(String(d.sessions), cx, Math.max(plotT, plotB - bh - 13));
+    }
+    c.font = FONT1; c.textAlign = "center";
+    c.fillStyle = rgb(isToday ? P.text1 : P.text2);
+    c.fillText(isToday ? `${d.label}*` : d.label, cx, plotB + 9);
+  });
+  c.textAlign = "left";
+}
+
+/* =====================================================================
    Tiny markdown renderer (only what DockPulse's MarkdownContent uses)
    ===================================================================== */
 const esc = s => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
@@ -1196,10 +2217,126 @@ function renderDock() {
     el.className = "band" + (b.page === open ? " open" : "");
     el.title = b.label;
     el.innerHTML = `<span class="ic">${b.icon}</span><span><div class="t">${esc(b.title)}</div><div class="s">${esc(b.subtitle)}</div></span>`;
-    el.addEventListener("click", () => openPage(b.page, true));
+    // A band either opens its page or, like Working Folder, runs its command directly
+    el.addEventListener("click", () => { if (b.run) { b.run(); render(); } else openPage(b.page, true); });
     el.addEventListener("contextmenu", e => { e.preventDefault(); showMenu(b.more, e.clientX, e.clientY); });
-    dock.appendChild(el);
+    if (b.quickAction) {
+      const grp = document.createElement("div");
+      grp.className = "band-group";
+      grp.appendChild(el);
+      const qa = document.createElement("button");
+      qa.className = "band band-icon";
+      qa.title = b.quickAction.title;
+      qa.setAttribute("aria-label", b.quickAction.title);
+      qa.innerHTML = `<span class="ic">${b.quickAction.icon}</span>`;
+      qa.addEventListener("click", e => { e.stopPropagation(); b.quickAction.run(); render(); });
+      qa.addEventListener("contextmenu", e => { e.preventDefault(); showMenu(b.more, e.clientX, e.clientY); });
+      grp.appendChild(qa);
+      dock.appendChild(grp);
+    } else {
+      dock.appendChild(el);
+    }
   }
+}
+
+function renderFormBlock(form) {
+  const card = document.createElement("form");
+  card.className = "form-card" + (form.compact ? " compact" : "");
+  card.noValidate = true;
+
+  if (form.title) {
+    const h = document.createElement("h3");
+    h.className = "form-title";
+    h.textContent = form.title;
+    card.appendChild(h);
+  }
+  if (form.desc) {
+    const p = document.createElement("p");
+    p.className = "form-desc";
+    p.textContent = form.desc;
+    card.appendChild(p);
+  }
+
+  const inputs = {};
+  const makeField = f => {
+    if (f.type === "toggle") {
+      const lbl = document.createElement("label");
+      lbl.className = "form-toggle";
+      const cb = document.createElement("input");
+      cb.type = "checkbox";
+      cb.checked = Boolean(f.value);
+      inputs[f.id] = () => cb.checked;
+      lbl.appendChild(cb);
+      const sp = document.createElement("span");
+      sp.textContent = f.label;
+      lbl.appendChild(sp);
+      return lbl;
+    }
+    const wrap = document.createElement("div");
+    wrap.className = "form-field";
+    const lbl = document.createElement("label");
+    lbl.className = "form-label";
+    lbl.textContent = f.label;
+    const inp = document.createElement("input");
+    inp.className = "form-input";
+    inp.type = f.type || "text";
+    if (f.placeholder) inp.placeholder = f.placeholder;
+    if (f.min !== undefined) inp.min = String(f.min);
+    if (f.max !== undefined) inp.max = String(f.max);
+    inp.value = f.value !== undefined ? String(f.value) : "";
+    inputs[f.id] = () => inp.value;
+    wrap.appendChild(lbl);
+    wrap.appendChild(inp);
+    return wrap;
+  };
+
+  for (const f of form.fields || []) {
+    if (f.row) {
+      const row = document.createElement("div");
+      row.className = "form-row";
+      f.row.forEach(sub => row.appendChild(makeField(sub)));
+      card.appendChild(row);
+    } else {
+      card.appendChild(makeField(f));
+    }
+  }
+
+  const errEl = document.createElement("p");
+  errEl.className = "form-err";
+  errEl.hidden = true;
+  card.appendChild(errEl);
+
+  const readValues = () => {
+    const out = {};
+    for (const [k, fn] of Object.entries(inputs)) out[k] = fn();
+    return out;
+  };
+  const trigger = actionId => {
+    const err = form.onAction && form.onAction(actionId, readValues());
+    if (typeof err === "string" && err) { errEl.textContent = err; errEl.hidden = false; }
+    else { errEl.hidden = true; }
+  };
+
+  if (form.actions && form.actions.length) {
+    const bar = document.createElement("div");
+    bar.className = "form-actions";
+    for (const a of form.actions) {
+      const btn = document.createElement("button");
+      btn.type = a.submit ? "submit" : "button";
+      btn.className = "form-btn" + (a.primary ? " primary" : "");
+      btn.innerHTML = (a.icon ? `<span class="ic">${a.icon}</span>` : "") + `<span>${esc(a.label)}</span>`;
+      if (!a.submit) btn.addEventListener("click", () => trigger(a.id));
+      bar.appendChild(btn);
+    }
+    card.appendChild(bar);
+  }
+
+  card.addEventListener("submit", e => {
+    e.preventDefault();
+    const sub = (form.actions || []).find(a => a.submit) || (form.actions || [])[0];
+    if (sub) trigger(sub.id);
+  });
+  return card;
 }
 
 function renderTop() {
@@ -1233,17 +2370,36 @@ function renderBody() {
         cv.className = "chart";
         wrap.appendChild(cv);
         drawChart(cv, block.chart);
+      } else if (block.pomo) {
+        const cv = document.createElement("canvas");
+        cv.className = "pomo-card";
+        cv.setAttribute("data-pomo", "1");
+        cv.setAttribute("role", "img");
+        cv.setAttribute("aria-label", `Pomodoro ${formatMmSs(block.pomo.remainingSec)}`);
+        wrap.appendChild(cv);
+        drawPomodoroCard(cv, block.pomo);
+      } else if (block.pomoStats) {
+        const cv = document.createElement("canvas");
+        cv.className = "chart";
+        wrap.appendChild(cv);
+        drawPomodoroStatsChart(cv, block.pomoStats);
+      } else if (block.form) {
+        wrap.appendChild(renderFormBlock(block.form));
       } else {
         wrap.insertAdjacentHTML("beforeend", md(block.md));
       }
     }
     body.appendChild(wrap);
     visibleItems = [];
+    const firstInp = wrap.querySelector(".form-input");
+    if (firstInp) firstInp.focus({ preventScroll: true });
     return;
   }
 
   const q = state.filter.trim().toLowerCase();
-  visibleItems = current.items.filter(it => !q || (it.title + " " + (it.subtitle || "")).toLowerCase().includes(q));
+  const baseItems = current.items.filter(it => !q || (it.title + " " + (it.subtitle || "")).toLowerCase().includes(q));
+  const extraItems = current.dynamicItems ? current.dynamicItems(state.filter) : [];
+  visibleItems = [...baseItems, ...extraItems];
   state.sel = Math.min(state.sel, Math.max(0, visibleItems.length - 1));
 
   const list = document.createElement("div");
@@ -1280,10 +2436,15 @@ function renderBody() {
     const row = document.createElement("div");
     row.className = "row" + (i === state.sel ? " sel" : "");
     row.setAttribute("role", "option");
+    const tagsHtml = it.tags && it.tags.length
+      ? `<div class="tags">${it.tags.map(t => typeof t === "string"
+        ? `<span class="tag">${esc(t)}</span>`
+        : `<span class="tag${t.tone ? " " + esc(t.tone) : ""}">${esc(t.text)}</span>`).join("")}</div>`
+      : "";
     row.innerHTML =
       `<span class="ic">${it.icon}</span>` +
       `<div class="txt"><div class="ti">${esc(it.title)}</div>${it.subtitle ? `<div class="su">${esc(it.subtitle)}</div>` : ""}</div>` +
-      (it.tags && it.tags.length ? `<div class="tags">${it.tags.map(t => `<span class="tag">${esc(t)}</span>`).join("")}</div>` : "");
+      tagsHtml;
     row.addEventListener("click", () => selectRow(i));
     row.addEventListener("dblclick", () => invoke(it.cmd));
     row.addEventListener("contextmenu", e => { e.preventDefault(); selectRow(i); if (it.more) showMenu(it.more, e.clientX, e.clientY); });
@@ -1312,7 +2473,10 @@ function selectRow(i) {
     det.innerHTML = it && it.details ? `<h2>${esc(it.details.title)}</h2>` + md(it.details.body) : "";
     det.querySelectorAll("canvas[data-chart]").forEach(cv => {
       const spec = current.charts[cv.dataset.chart];
-      if (spec) drawChart(cv, spec);
+      if (spec) {
+        if (spec.kind === "aiBars") drawAiUsageCard(cv, spec);
+        else drawChart(cv, spec);
+      }
     });
   }
   renderBar();
@@ -1389,11 +2553,14 @@ function toast(msg) {
   toastTimer = setTimeout(() => { t.hidden = true; }, 2200);
 }
 
-function showWinNotif(prayerName, timeStr, regionDisplay) {
-  $("wnIcon").textContent = prayerGlyph(prayerName);
-  $("wnTitle").textContent = `${prayerName} Prayer Time — ${timeStr}`;
-  $("wnBody").textContent = `It is now time for ${prayerName} in ${regionDisplay}.`;
+function showWinNotifCustom(icon, title, body) {
+  $("wnIcon").textContent = icon;
+  $("wnTitle").textContent = title;
+  $("wnBody").textContent = body;
   $("winNotif").hidden = false;
+}
+function showWinNotif(prayerName, timeStr, regionDisplay) {
+  showWinNotifCustom(prayerGlyph(prayerName), `${prayerName} Prayer Time — ${timeStr}`, `It is now time for ${prayerName} in ${regionDisplay}.`);
 }
 function hideWinNotif() { $("winNotif").hidden = true; }
 function checkPrayerNotification() {
@@ -1406,7 +2573,11 @@ function checkPrayerNotification() {
 $("wnClose").addEventListener("click", hideWinNotif);
 
 document.addEventListener("click", e => { if (!$("menu").contains(e.target) && e.target !== $("actionsBtn") && !$("actionsBtn").contains(e.target)) hideMenu(); });
-$("primaryBtn").addEventListener("click", () => { const it = visibleItems[state.sel]; if (it) invoke(it.cmd); });
+$("primaryBtn").addEventListener("click", () => {
+  if (current.kind === "content") { invoke(current.primaryCmd); return; }
+  const it = visibleItems[state.sel];
+  if (it) invoke(it.cmd);
+});
 $("actionsBtn").addEventListener("click", e => { e.stopPropagation(); toggleActions(); });
 
 document.addEventListener("keydown", e => {
@@ -1427,11 +2598,16 @@ document.addEventListener("keydown", e => {
     if (e.key === "Enter" && menuSel >= 0) { e.preventDefault(); invoke(menuItems[menuSel]); return; }
     return;
   }
+  if (t.closest && t.closest(".form-card")) {
+    if (e.key === "Escape") { e.preventDefault(); goBack(); }
+    return;
+  }
   if (e.key === "ArrowDown" || e.key === "ArrowUp") {
     if (!visibleItems.length) return;
     e.preventDefault();
     selectRow((state.sel + (e.key === "ArrowDown" ? 1 : -1) + visibleItems.length) % visibleItems.length);
   } else if (e.key === "Enter") {
+    if (current.kind === "content" && current.primaryCmd) { e.preventDefault(); invoke(current.primaryCmd); return; }
     const it = visibleItems[state.sel];
     if (it) { e.preventDefault(); invoke(it.cmd); }
   } else if (e.key === "Escape") {
@@ -1456,20 +2632,51 @@ matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => { if
 
 $("scenario").addEventListener("change", e => {
   state.scenario = e.target.value;
-  if (state.scenario === "tehran") {
-    state.prayer = { ...state.prayer, regionId: "tehran", methodId: "tehran", asr: "Standard" };
+  state.prayer = state.scenario === "tehran"
+    ? { ...state.prayer, regionId: "tehran", methodId: "tehran", asr: "Standard" }
+    : { ...state.prayer, regionId: "kabul", methodId: "karachi", asr: "Hanafi" };
+
+  if (state.scenario === "normal") {
+    state.clock = T("14:11"); $("clock").value = "14:11";
+    state.wireless = { pinnedId: "mouse-pro-x2", pinnedName: "PRO X2 SUPERSTRIKE" };
+    state.today.coffeeDone = true;
+    state.pomodoro.running = false;
+    state.pomodoro.phase = "focus";
+    state.pomodoro.sessionIndex = 1;
+    state.pomodoro.totalSec = state.pomodoro.focusMin * 60;
+    state.pomodoro.remainingSec = state.pomodoro.totalSec;
   } else {
-    state.prayer = { ...state.prayer, regionId: "kabul", methodId: "karachi", asr: "Hanafi" };
+    state.pomodoro.running = false;
   }
+
   if (state.scenario === "prayertime") {
-    state.clock = T("15:01");
-    $("clock").value = "15:01";
+    state.clock = T("15:01"); $("clock").value = "15:01";
     state.prayer.notifications = true;
     state.stack = ["home", "prayer"];
+  } else if (state.scenario === "ai_limit" || state.scenario === "ai_nosignin") {
+    state.stack = ["home", "aiUsage"];
+  } else if (state.scenario === "bt_fallback") {
+    state.wireless = { pinnedId: "airpods-pro-3", pinnedName: "AirPods Pro 3" };
+    state.stack = ["home", "wireless"];
+  } else if (state.scenario === "coffee_due") {
+    state.clock = T("10:05"); $("clock").value = "10:05";
+    state.today.coffeeDone = false;
+    state.stack = ["home", "today"];
+  } else if (state.scenario === "pomodoro_running") {
+    state.pomodoro.phase = "focus";
+    state.pomodoro.sessionIndex = 2;
+    state.pomodoro.totalSec = state.pomodoro.focusMin * 60;
+    state.pomodoro.remainingSec = 18 * 60 + 42;
+    state.pomodoro.running = true;
+    state.stack = ["home", "pomodoro"];
   }
+  state.filter = "";
   state.sel = 0;
   render();
   checkPrayerNotification();
+  if (state.scenario === "coffee_due") {
+    showWinNotifCustom("\uEC32", `Coffee Time — ${hhmm(state.today.coffeeTime)}`, "Time for your daily coffee! Check it off in DockPulse Today.");
+  }
 });
 $("clock").addEventListener("input", e => {
   if (!e.target.value) return;
@@ -1478,6 +2685,20 @@ $("clock").addEventListener("input", e => {
   checkPrayerNotification();
 });
 window.addEventListener("resize", () => { if (current) { renderBody(); } });
+
+// Live 1-second Pomodoro countdown ticker for the preview
+setInterval(() => {
+  if (!state.pomodoro.running) return;
+  state.pomodoro.remainingSec -= 1;
+  if (state.pomodoro.remainingSec <= 0) {
+    pomoAdvance(true);
+    render();
+    return;
+  }
+  renderDock();
+  const cv = document.querySelector("canvas[data-pomo]");
+  if (cv) drawPomodoroCard(cv, state.pomodoro);
+}, 1000);
 
 let savedTheme = "auto";
 try { savedTheme = localStorage.getItem("dockpulse-preview-theme") || "auto"; } catch (_) { /* storage unavailable */ }

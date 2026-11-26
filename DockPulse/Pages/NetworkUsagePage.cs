@@ -60,6 +60,10 @@ internal sealed partial class NetworkUsagePage : ListPage
 
     private IListItem[] BuildItems(NetworkUsageSnapshot snapshot)
     {
+        // Details-pane charts are Markdown images: Command Palette shows them at natural size and clips
+        // anything wider than the pane (about 345 px at its default size), so keep them narrower than that.
+        const int DetailsChartWidth = 320;
+
         var items = new List<IListItem>();
 
         string peakHour = NetworkUsageService.FormatPeakHour(snapshot.HourlyToday);
@@ -73,7 +77,7 @@ internal sealed partial class NetworkUsagePage : ListPage
             buckets: snapshot.HourlyToday,
             activeBucketIndex: snapshot.CurrentHour,
             isDarkTheme: true,
-            width: 400,
+            width: DetailsChartWidth,
             height: 185);
 
         string monthChartUri = NetworkChartRenderer.RenderBarChartDataUri(
@@ -82,7 +86,7 @@ internal sealed partial class NetworkUsagePage : ListPage
             buckets: snapshot.DailyMonth,
             activeBucketIndex: snapshot.CurrentDay - 1,
             isDarkTheme: true,
-            width: 400,
+            width: DetailsChartWidth,
             height: 185);
 
         var todayDetails = new Details
@@ -155,7 +159,7 @@ internal sealed partial class NetworkUsagePage : ListPage
                 buckets: adapter.DailyMonth,
                 activeBucketIndex: snapshot.CurrentDay - 1,
                 isDarkTheme: true,
-                width: 400,
+                width: DetailsChartWidth,
                 height: 185);
 
             items.Add(new ListItem(new OpenUriCommand("Open Data Usage Settings", "ms-settings:datausage", new IconInfo("\uE774")))

@@ -1,9 +1,11 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Threading.Tasks;
+using DockPulse.Helpers;
 using Windows.Devices.Bluetooth;
 using Windows.Devices.Bluetooth.GenericAttributeProfile;
 using Windows.Devices.Enumeration;
@@ -29,6 +31,12 @@ public sealed record WirelessDeviceBattery(
     bool IsWiredOrCharging = false,
     string? DetailText = null);
 
+public sealed record ResolvedWirelessSelection(
+    WirelessDeviceBattery? Active,
+    bool PinnedMissing,
+    string? PinnedId,
+    string? PinnedName);
+
 public sealed class WirelessBatteryService : IDisposable
 {
     // Windows PnP property key DEVPKEY_Bluetooth_Battery ({104EA319-6EE2-4701-BD47-8DDBF425BBE5}, 2)
@@ -44,13 +52,160 @@ public sealed class WirelessBatteryService : IDisposable
 
     private readonly LogitechHidppBatteryReader _logitechReader = new();
     private readonly AppleAirPodsBleReader _appleAirPodsReader = new();
+    private readonly object _pinLock = new();
+    private readonly string _configPath;
+
+    private string? _pinnedDeviceId;
+    private string? _pinnedDeviceName;
+
+    public event Action? PinChanged;
 
     private sealed record ConnectedAppleDevice(string ContainerId, string Name, ushort ExpectedModelId);
 
     public WirelessBatteryService()
     {
+        _configPath = DockPulseHelpers.GetSettingsFilePath("wireless.cfg");
+        LoadPinConfig();
+
         // Start hardware-filtered passive BLE watcher (0x004C) early so AirPods broadcasts are ready immediately
         _appleAirPodsReader.EnsureStarted();
+    }
+
+    public string? PinnedDeviceId
+    {
+        get
+        {
+            lock (_pinLock)
+            {
+                return _pinnedDeviceId;
+            }
+        }
+    }
+
+    public string? PinnedDeviceName
+    {
+        get
+        {
+            lock (_pinLock)
+            {
+                return _pinnedDeviceName;
+            }
+        }
+    }
+
+    public void PinDevice(string id, string name)
+    {
+        if (string.IsNullOrWhiteSpace(id))
+        {
+            return;
+        }
+
+        lock (_pinLock)
+        {
+            _pinnedDeviceId = id.Trim();
+            _pinnedDeviceName = string.IsNullOrWhiteSpace(name) ? id.Trim() : name.Trim();
+            SavePinConfigLocked();
+        }
+
+        PinChanged?.Invoke();
+    }
+
+    public ResolvedWirelessSelection ResolveSelection(IReadOnlyList<WirelessDeviceBattery> devices)
+    {
+        string? pinnedId;
+        string? pinnedName;
+        lock (_pinLock)
+        {
+            pinnedId = _pinnedDeviceId;
+            pinnedName = _pinnedDeviceName;
+        }
+
+        if (devices.Count == 0)
+        {
+            return new ResolvedWirelessSelection(null, false, pinnedId, pinnedName);
+        }
+
+        if (!string.IsNullOrWhiteSpace(pinnedId))
+        {
+            var match = devices.FirstOrDefault(d => string.Equals(d.Id, pinnedId, StringComparison.OrdinalIgnoreCase));
+            if (match is not null)
+            {
+                if (!string.Equals(pinnedName, match.Name, StringComparison.Ordinal))
+                {
+                    lock (_pinLock)
+                    {
+                        if (string.Equals(_pinnedDeviceId, pinnedId, StringComparison.OrdinalIgnoreCase))
+                        {
+                            _pinnedDeviceName = match.Name;
+                            SavePinConfigLocked();
+                        }
+                    }
+                }
+
+                return new ResolvedWirelessSelection(match, false, pinnedId, match.Name);
+            }
+
+            return new ResolvedWirelessSelection(
+                devices[0],
+                PinnedMissing: true,
+                PinnedId: pinnedId,
+                PinnedName: string.IsNullOrWhiteSpace(pinnedName) ? pinnedId : pinnedName);
+        }
+
+        return new ResolvedWirelessSelection(devices[0], false, null, null);
+    }
+
+    private void LoadPinConfig()
+    {
+        try
+        {
+            if (!File.Exists(_configPath))
+            {
+                return;
+            }
+
+            foreach (string rawLine in File.ReadAllLines(_configPath))
+            {
+                int sep = rawLine.IndexOf('=');
+                if (sep <= 0)
+                {
+                    continue;
+                }
+
+                string key = rawLine[..sep].Trim();
+                string value = rawLine[(sep + 1)..].Trim();
+
+                if (string.Equals(key, "pinned_id", StringComparison.OrdinalIgnoreCase) && !string.IsNullOrWhiteSpace(value))
+                {
+                    _pinnedDeviceId = value;
+                }
+                else if (string.Equals(key, "pinned_name", StringComparison.OrdinalIgnoreCase) && !string.IsNullOrWhiteSpace(value))
+                {
+                    _pinnedDeviceName = value;
+                }
+            }
+        }
+        catch
+        {
+            // Keep unpinned defaults if config file is unreadable
+        }
+    }
+
+    private void SavePinConfigLocked()
+    {
+        try
+        {
+            string[] lines =
+            [
+                $"pinned_id={_pinnedDeviceId ?? string.Empty}",
+                $"pinned_name={_pinnedDeviceName ?? string.Empty}",
+            ];
+            File.WriteAllLines(_configPath, lines);
+        }
+        catch
+        {
+            // Ignore write errors
+        }
     }
 
     public async Task<IReadOnlyList<WirelessDeviceBattery>> GetDevicesAsync(bool forceUncachedGatt = false)

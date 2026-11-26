@@ -1,9 +1,19 @@
 name: Build MSIX Bundle
 
 on:
+  # Build every branch, so a feature branch gets a DockPulse-Local-Test package to try before merging
   push:
-    branches: [ main ]
+    branches: [ '**' ]
+    # Pushes that only touch the HTML preview or docs don't change the package, so skip them
+    paths-ignore:
+      - 'ui-preview/**'
+      - '**/*.md'
   workflow_dispatch:
+
+# A newer push to the same branch cancels the run that is still building the older commit
+concurrency:
+  group: build-msix-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build:
