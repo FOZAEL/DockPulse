@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using DockPulse.Commands;
@@ -13,6 +14,8 @@ internal sealed partial class WirelessBatteryDockBandItem : ListItem, IDisposabl
     private readonly WirelessBatteryService _service;
     private readonly WirelessDevicesPage _page;
     private readonly Timer _timer;
+    private readonly object _stateLock = new();
+    private IReadOnlyList<WirelessDeviceBattery> _lastDevices = [];
     private int _isRefreshing;
 
     public WirelessBatteryDockBandItem(WirelessBatteryService service, WirelessDevicesPage page)
@@ -31,6 +34,8 @@ internal sealed partial class WirelessBatteryDockBandItem : ListItem, IDisposabl
             new CommandContextItem(new OpenUriCommand("Bluetooth Settings", "ms-settings:bluetooth", new IconInfo("\uE713"))),
         ];
 
+        _service.PinChanged += OnPinChanged;
+
         _timer = new Timer(_ => _ = RefreshAsync(forceUncached: false), null, TimeSpan.Zero, TimeSpan.FromSeconds(60));
     }
 
@@ -44,23 +49,13 @@ internal sealed partial class WirelessBatteryDockBandItem : ListItem, IDisposabl
         try
         {
             var devices = await _service.GetDevicesAsync(forceUncached).ConfigureAwait(false);
+            lock (_stateLock)
+            {
+                _lastDevices = devices;
+            }
+
             _page.UpdateDevices(devices);
-
-            if (devices.Count == 0)
-            {
-                Title = "No BT";
-                Subtitle = "Wireless";
-                Icon = new IconInfo("\uE702");
-            }
-            else
-            {
-                var primary = devices[0];
-                string extra = devices.Count > 1 ? $" (+{devices.Count - 1})" : string.Empty;
-
-                Title = $"{primary.BatteryPercent}%{extra}";
-                Subtitle = Truncate(primary.Name, 18);
-                Icon = new IconInfo(WirelessBatteryService.GetBatteryGlyph(primary.BatteryPercent, primary.IsWiredOrCharging));
-            }
+            ApplyDevices(devices);
         }
         catch
         {
@@ -73,11 +68,42 @@ internal sealed partial class WirelessBatteryDockBandItem : ListItem, IDisposabl
         }
     }
 
+    private void OnPinChanged()
+    {
+        IReadOnlyList<WirelessDeviceBattery> snapshot;
+        lock (_stateLock)
+        {
+            snapshot = _lastDevices;
+        }
+
+        ApplyDevices(snapshot);
+    }
+
+    private void ApplyDevices(IReadOnlyList<WirelessDeviceBattery> devices)
+    {
+        var selection = _service.ResolveSelection(devices);
+        if (selection.Active is null)
+        {
+            Title = "No BT";
+            Subtitle = "Wireless";
+            Icon = new IconInfo("\uE702");
+            return;
+        }
+
+        var primary = selection.Active;
+        Title = $"{primary.BatteryPercent}%";
+        Subtitle = selection.PinnedMissing
+            ? $"Fallback: {Truncate(primary.Name, 13)}"
+            : Truncate(primary.Name, 18);
+        Icon = new IconInfo(WirelessBatteryService.GetBatteryGlyph(primary.BatteryPercent, primary.IsWiredOrCharging));
+    }
+
     private static string Truncate(string value, int maxLen) =>
         value.Length <= maxLen ? value : $"{value[..(maxLen - 1)]}…";
 
     public void Dispose()
     {
+        _service.PinChanged -= OnPinChanged;
         _timer.Dispose();
         _service.Dispose();
     }

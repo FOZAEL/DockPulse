@@ -2,10 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Security;
 using Microsoft.CommandPalette.Extensions.Toolkit;
-using Windows.Data.Xml.Dom;
-using Windows.UI.Notifications;
 
 namespace DockPulse.Services;
 
@@ -496,34 +493,9 @@ public sealed class PrayerTimesService
 
     private static void ShowWindowsPrayerToast(string prayerName, DateTimeOffset prayerTime, string regionDisplayName)
     {
-        try
-        {
-            string title = SecurityElement.Escape($"{prayerName} Prayer Time — {prayerTime:HH:mm}") ?? prayerName;
-            string body = SecurityElement.Escape($"It is now time for {prayerName} in {regionDisplayName}.") ?? regionDisplayName;
-
-            string xml =
-                "<toast>" +
-                "<visual><binding template=\"ToastGeneric\">" +
-                $"<text>{title}</text>" +
-                $"<text>{body}</text>" +
-                "</binding></visual>" +
-                "<audio src=\"ms-winsoundevent:Notification.Default\"/>" +
-                "</toast>";
-
-            var doc = new XmlDocument();
-            doc.LoadXml(xml);
-
-            var toast = new ToastNotification(doc)
-            {
-                ExpirationTime = DateTimeOffset.Now.AddMinutes(30),
-            };
-
-            ToastNotificationManager.CreateToastNotifier().Show(toast);
-        }
-        catch
-        {
-            // Ignore notification errors if Windows Notifications are disabled at OS level
-        }
+        WindowsNotificationHelper.ShowToast(
+            $"{prayerName} Prayer Time — {prayerTime:HH:mm}",
+            $"It is now time for {prayerName} in {regionDisplayName}.");
     }
 
     public static string GetRegionUtcOffsetLabel(PrayerRegion region)

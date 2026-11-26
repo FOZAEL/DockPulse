@@ -30,5 +30,9 @@ public sealed partial class DockPulse : IExtension, IDisposable
         };
     }
 
-    public void Dispose() => this._extensionDisposedEvent.Set();
+    public void Dispose()
+    {
+        _provider.DisposeResources();
+        this._extensionDisposedEvent.Set();
+    }
 }
