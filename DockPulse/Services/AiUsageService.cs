@@ -6,6 +6,7 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -75,28 +76,43 @@ public sealed record AiUsageSnapshot(
     IReadOnlyList<AiProviderUsage> Providers,
     AiTightestLimit? Tightest);
 
-public sealed class AiUsageService
+public sealed partial class AiUsageService
 {
     private const int MaxCodexFilesToScan = 15;
 
-    // agy contacts Google for every /usage call, so run it at most this often (manual refresh skips the wait)
-    private static readonly TimeSpan AgyRefreshInterval = TimeSpan.FromMinutes(5);
-    private static readonly TimeSpan AgyTimeout = TimeSpan.FromSeconds(30);
+    // Each CLI /usage call contacts the provider, so run it at most this often (manual refresh skips the wait)
+    private static readonly TimeSpan CliRefreshInterval = TimeSpan.FromMinutes(5);
+    private static readonly TimeSpan CliTimeout = TimeSpan.FromSeconds(30);
 
-    private readonly object _agyLock = new();
-    private AiProviderUsage? _agyLastGood;
-    private AiProviderUsage? _agyLastStatus;
-    private DateTimeOffset _agyLastAttemptUtc = DateTimeOffset.MinValue;
-    private int _agyFetching;
+    private readonly BackgroundCliReader _agyReader;
+    private readonly BackgroundCliReader _claudeReader;
 
-    /// <summary>Raised on a thread-pool thread when a background Antigravity read finishes.</summary>
+    public AiUsageService()
+    {
+        _agyReader = new BackgroundCliReader(FetchAgyUsage, RaiseUpdated);
+        _claudeReader = new BackgroundCliReader(FetchClaudeCliUsage, RaiseUpdated);
+    }
+
+    /// <summary>Raised on a thread-pool thread when a background CLI read (Claude or Antigravity) finishes.</summary>
     public event Action? Updated;
+
+    private void RaiseUpdated()
+    {
+        try
+        {
+            Updated?.Invoke();
+        }
+        catch
+        {
+            // Ignore subscriber errors
+        }
+    }
 
     public AiUsageSnapshot GetUsageSnapshot(bool forceRefresh = false)
     {
         var nowUtc = DateTimeOffset.UtcNow;
 
-        var claude = ReadClaudeUsage(nowUtc);
+        var claude = GetClaudeUsage(nowUtc, forceRefresh);
         var antigravity = GetAntigravityUsage(nowUtc, forceRefresh);
         var codex = ReadCodexUsage(nowUtc);
 
@@ -230,41 +246,166 @@ public sealed class AiUsageService
     private const string AgyPlanPrefix = "Antigravity CLI";
     private const string AgyUrl = "https://antigravity.google";
 
-    // Returns the last Antigravity reading at once and, when it is due, starts a background
-    // `agy -p /usage` run; Updated fires when that run finishes so the band can redraw.
-    private AiProviderUsage GetAntigravityUsage(DateTimeOffset nowUtc, bool forceRefresh)
+    /// <summary>
+    /// Runs one CLI usage read in the background at most every <see cref="CliRefreshInterval"/> and keeps
+    /// the last good result, so callers never wait on the CLI.
+    /// </summary>
+    private sealed class BackgroundCliReader(Func<AiProviderUsage> fetch, Action onUpdated)
     {
-        AiProviderUsage? good;
-        AiProviderUsage? status;
-        bool due;
-        lock (_agyLock)
-        {
-            good = _agyLastGood;
-            status = _agyLastStatus;
-            due = forceRefresh || nowUtc - _agyLastAttemptUtc >= AgyRefreshInterval;
-        }
+        private readonly object _lock = new();
+        private AiProviderUsage? _lastGood;
+        private AiProviderUsage? _lastStatus;
+        private DateTimeOffset _lastAttemptUtc = DateTimeOffset.MinValue;
+        private int _fetching;
 
-        if (due)
+        /// <summary>Returns the last good reading and the last failure status, starting a new read when due.</summary>
+        public (AiProviderUsage? Good, AiProviderUsage? Status) Get(DateTimeOffset nowUtc, bool forceRefresh)
         {
-            StartAgyRefresh();
-        }
-
-        if (good is not null)
-        {
-            // A cached window whose reset time has passed is full again
-            return good with
+            AiProviderUsage? good;
+            AiProviderUsage? status;
+            bool due;
+            lock (_lock)
             {
-                FiveHour = RollWindow(good.FiveHour, nowUtc),
-                Weekly = RollWindow(good.Weekly, nowUtc),
-            };
+                good = _lastGood;
+                status = _lastStatus;
+                due = forceRefresh || nowUtc - _lastAttemptUtc >= CliRefreshInterval;
+            }
+
+            if (due)
+            {
+                Start();
+            }
+
+            return (good, status);
         }
 
-        return status ?? BuildAntigravityStatus(
-            "Checking /usage in agy…",
-            "CHECKING /USAGE IN AGY",
-            "DockPulse is reading your limits with `agy -p /usage`. This takes a few seconds.");
+        private void Start()
+        {
+            if (Interlocked.Exchange(ref _fetching, 1) == 1)
+            {
+                return;
+            }
+
+            lock (_lock)
+            {
+                _lastAttemptUtc = DateTimeOffset.UtcNow;
+            }
+
+            _ = Task.Run(() =>
+            {
+                try
+                {
+                    var result = fetch();
+                    lock (_lock)
+                    {
+                        if (result.HasData)
+                        {
+                            _lastGood = result;
+                            _lastStatus = null;
+                        }
+                        else
+                        {
+                            // Keep showing the last good numbers (with their age) if a later read fails
+                            _lastStatus = result;
+                        }
+                    }
+                }
+                catch
+                {
+                    // Never let a failed CLI run take the extension down
+                }
+                finally
+                {
+                    Interlocked.Exchange(ref _fetching, 0);
+                }
+
+                onUpdated();
+            });
+        }
     }
 
+    private readonly record struct CliRun(bool Started, bool TimedOut, int ExitCode, string Stdout);
+
+    private static CliRun RunCli(string exe, IEnumerable<string> args)
+    {
+        var psi = new ProcessStartInfo(exe)
+        {
+            UseShellExecute = false,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            CreateNoWindow = true,
+            StandardOutputEncoding = Encoding.UTF8,
+            StandardErrorEncoding = Encoding.UTF8,
+            WorkingDirectory = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+        };
+        foreach (string arg in args)
+        {
+            psi.ArgumentList.Add(arg);
+        }
+
+        using var proc = Process.Start(psi);
+        if (proc is null)
+        {
+            return new CliRun(false, false, -1, string.Empty);
+        }
+
+        // Read both streams while waiting so a full pipe can never block the CLI
+        var stdoutTask = proc.StandardOutput.ReadToEndAsync();
+        var stderrTask = proc.StandardError.ReadToEndAsync();
+
+        if (!proc.WaitForExit((int)CliTimeout.TotalMilliseconds))
+        {
+            try
+            {
+                proc.Kill(entireProcessTree: true);
+            }
+            catch
+            {
+                // Already gone
+            }
+
+            return new CliRun(true, true, -1, string.Empty);
+        }
+
+        string stdout = stdoutTask.GetAwaiter().GetResult();
+        _ = stderrTask.GetAwaiter().GetResult();
+        return new CliRun(true, false, proc.ExitCode, stdout);
+    }
+
+    private static string? FindOnPath(string exeName, long minBytes = 0)
+    {
+        string? path = Environment.GetEnvironmentVariable("PATH");
+        if (string.IsNullOrEmpty(path))
+        {
+            return null;
+        }
+
+        foreach (string dir in path.Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        {
+            try
+            {
+                string candidate = Path.Combine(dir, exeName);
+                if (File.Exists(candidate) && new FileInfo(candidate).Length >= minBytes)
+                {
+                    return candidate;
+                }
+            }
+            catch
+            {
+                // Skip malformed PATH entries
+            }
+        }
+
+        return null;
+    }
+
+    private static AiProviderUsage RollCached(AiProviderUsage usage, DateTimeOffset nowUtc) => usage with
+    {
+        FiveHour = RollWindow(usage.FiveHour, nowUtc),
+        Weekly = RollWindow(usage.Weekly, nowUtc),
+    };
+
+    // A cached window whose reset time has passed is full again
     private static AiLimitWindow? RollWindow(AiLimitWindow? window, DateTimeOffset nowUtc)
     {
         if (window is null || window.ResetPassed || window.ResetsAtUtc is null || window.ResetsAtUtc.Value > nowUtc)
@@ -275,55 +416,279 @@ public sealed class AiUsageService
         return window with { RemainingPercent = 100, ResetPassed = true };
     }
 
-    private void StartAgyRefresh()
+    // ---------------- Claude: `claude -p /usage`, with the status-line file as a fallback ----------------
+
+    private const string ClaudeCliPlan = "Claude Code CLI • /usage";
+    private const string ClaudeCliNotFound = "claude CLI not found";
+
+    // Claude usage covers the whole subscription (Claude app, web and Claude Code), so reading it from the
+    // CLI keeps it current even when you only use the desktop app. The status-line cache can be fresher
+    // right after a terminal session, so the newer of the two wins.
+    private AiProviderUsage GetClaudeUsage(DateTimeOffset nowUtc, bool forceRefresh)
     {
-        if (Interlocked.Exchange(ref _agyFetching, 1) == 1)
+        var fromStatusLine = ReadClaudeUsage(nowUtc);
+        var (good, status) = _claudeReader.Get(nowUtc, forceRefresh);
+
+        if (good is not null)
         {
-            return;
+            var fromCli = RollCached(good, nowUtc);
+            return fromStatusLine.HasData && fromStatusLine.UpdatedAtUtc > fromCli.UpdatedAtUtc ? fromStatusLine : fromCli;
         }
 
-        lock (_agyLock)
+        if (fromStatusLine.HasData)
         {
-            _agyLastAttemptUtc = DateTimeOffset.UtcNow;
+            return fromStatusLine;
         }
 
-        _ = Task.Run(() =>
+        if (status is null)
+        {
+            return BuildClaudeCliStatus(
+                "Checking /usage in Claude Code…",
+                "CHECKING /USAGE",
+                "DockPulse is reading your limits with `claude -p /usage`. This takes a few seconds.");
+        }
+
+        // No CLI: fall back to the status-line setup hint
+        return string.Equals(status.UnavailableSubtitle, ClaudeCliNotFound, StringComparison.Ordinal)
+            ? fromStatusLine
+            : status;
+    }
+
+    private static AiProviderUsage FetchClaudeCliUsage()
+    {
+        string? exe = FindClaudeExecutable();
+        if (exe is null)
+        {
+            return BuildClaudeCliStatus(
+                ClaudeCliNotFound,
+                "CLAUDE CLI NOT FOUND",
+                "Install Claude Code (`npm install -g @anthropic-ai/claude-code`) and sign in once, or set up the status line below.");
+        }
+
+        // --no-session-persistence: /usage is a local command, and this keeps it out of your session history
+        var run = RunCli(exe, ["-p", "/usage", "--output-format", "json", "--no-session-persistence"]);
+        if (!run.Started)
+        {
+            return BuildClaudeCliStatus("Couldn't start Claude Code", "COULDN'T START CLAUDE", $"Starting `{exe}` failed.");
+        }
+
+        if (run.TimedOut)
+        {
+            return BuildClaudeCliStatus(
+                "Claude /usage timed out",
+                "CLAUDE /USAGE TIMED OUT",
+                $"`claude -p /usage` did not answer within {(int)CliTimeout.TotalSeconds} seconds. DockPulse will try again in a few minutes.");
+        }
+
+        if (run.ExitCode != 0)
+        {
+            return BuildClaudeCliStatus(
+                "Couldn't read /usage from Claude Code",
+                "COULDN'T READ /USAGE",
+                $"`claude -p /usage` exited with code {run.ExitCode}. Run `claude` once in a terminal to check that you're signed in.");
+        }
+
+        return ParseClaudeUsage(run.Stdout, DateTimeOffset.UtcNow)
+               ?? BuildClaudeCliStatus(
+                   "No plan limits in Claude /usage",
+                   "NO PLAN LIMITS",
+                   "`claude -p /usage` didn't list session or weekly limits. They appear for Claude Pro, Max and Ultra sign-ins (not API keys).");
+    }
+
+    private static string? FindClaudeExecutable()
+    {
+        // The npm package's bin\claude.exe is a tiny placeholder until its install finishes, hence the size check
+        const long MinRealExe = 1_000_000;
+        string home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        string[] candidates =
+        [
+            Path.Combine(home, ".local", "bin", "claude.exe"),
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "npm", "node_modules", "@anthropic-ai", "claude-code", "bin", "claude.exe"),
+        ];
+
+        foreach (string candidate in candidates)
         {
             try
             {
-                var result = FetchAgyUsage();
-                lock (_agyLock)
+                if (File.Exists(candidate) && new FileInfo(candidate).Length >= MinRealExe)
                 {
-                    if (result.HasData)
-                    {
-                        _agyLastGood = result;
-                        _agyLastStatus = null;
-                    }
-                    else
-                    {
-                        // Keep showing the last good numbers (with their age) if a later read fails
-                        _agyLastStatus = result;
-                    }
+                    return candidate;
                 }
             }
             catch
             {
-                // Never let a failed agy run take the extension down
+                // Try the next location
             }
-            finally
+        }
+
+        return FindOnPath("claude.exe", MinRealExe);
+    }
+
+    [GeneratedRegex(@"^\s*Current session:\s*(?<pct>\d+(?:\.\d+)?)\s*%\s*used(?:\s*[·•-]\s*resets\s+(?<when>[^(\r\n]+?)\s*(?:\((?<tz>[^)\r\n]+)\))?)?\s*$", RegexOptions.Multiline | RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    private static partial Regex ClaudeSessionLine();
+
+    [GeneratedRegex(@"^\s*Current week \(all models\):\s*(?<pct>\d+(?:\.\d+)?)\s*%\s*used(?:\s*[·•-]\s*resets\s+(?<when>[^(\r\n]+?)\s*(?:\((?<tz>[^)\r\n]+)\))?)?\s*$", RegexOptions.Multiline | RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    private static partial Regex ClaudeWeekAllModelsLine();
+
+    [GeneratedRegex(@"^\s*Current week[^:\r\n]*:\s*(?<pct>\d+(?:\.\d+)?)\s*%\s*used(?:\s*[·•-]\s*resets\s+(?<when>[^(\r\n]+?)\s*(?:\((?<tz>[^)\r\n]+)\))?)?\s*$", RegexOptions.Multiline | RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    private static partial Regex ClaudeWeekAnyLine();
+
+    // `claude -p /usage --output-format json` prints {"local_command":"usage","result":"..."} where result has lines like
+    //   Current session: 88% used · resets Nov 27, 12:49am (Asia/Kabul)
+    //   Current week (all models): 43% used · resets Nov 30, 5:29pm (Asia/Kabul)
+    internal static AiProviderUsage? ParseClaudeUsage(string stdout, DateTimeOffset nowUtc)
+    {
+        string? text = null;
+        string[] lines = stdout.Split('\n');
+        for (int li = lines.Length - 1; li >= 0 && text is null; li--)
+        {
+            string line = lines[li].Trim();
+            if (!line.StartsWith('{'))
             {
-                Interlocked.Exchange(ref _agyFetching, 0);
+                continue;
             }
 
             try
             {
-                Updated?.Invoke();
+                using var doc = JsonDocument.Parse(line);
+                if (doc.RootElement.TryGetProperty("result", out var result) && result.ValueKind == JsonValueKind.String)
+                {
+                    text = result.GetString();
+                }
             }
             catch
             {
-                // Ignore subscriber errors
+                // Not the result line
             }
-        });
+        }
+
+        // Plain-text output (no --output-format json) is the result text itself
+        text ??= stdout;
+
+        AiLimitWindow? fiveHour = ParseClaudeWindow(ClaudeSessionLine().Match(text), "5h", "5-Hour Window", nowUtc);
+        var weekMatch = ClaudeWeekAllModelsLine().Match(text);
+        if (!weekMatch.Success)
+        {
+            weekMatch = ClaudeWeekAnyLine().Match(text);
+        }
+
+        AiLimitWindow? weekly = ParseClaudeWindow(weekMatch, "Wk", "Weekly Limit", nowUtc);
+        if (fiveHour is null && weekly is null)
+        {
+            return null;
+        }
+
+        return new AiProviderUsage(
+            Id: "claude",
+            Name: "Claude",
+            PlanSubtitle: ClaudeCliPlan,
+            HasData: true,
+            FiveHour: fiveHour,
+            Weekly: weekly,
+            UpdatedAtUtc: nowUtc,
+            UnavailableSubtitle: string.Empty,
+            UnavailableCardText: string.Empty,
+            DetailsNote: "Source: `claude -p /usage`",
+            Url: "https://claude.ai/settings/usage");
+    }
+
+    private static AiLimitWindow? ParseClaudeWindow(Match match, string windowShort, string label, DateTimeOffset nowUtc)
+    {
+        if (!match.Success ||
+            !double.TryParse(match.Groups["pct"].Value, NumberStyles.Float, CultureInfo.InvariantCulture, out double used))
+        {
+            return null;
+        }
+
+        DateTimeOffset? resetsAt = match.Groups["when"].Success
+            ? ParseClaudeResetTime(match.Groups["when"].Value, match.Groups["tz"].Success ? match.Groups["tz"].Value : null, nowUtc)
+            : null;
+        bool resetPassed = resetsAt is not null && resetsAt.Value <= nowUtc;
+        int remaining = resetPassed ? 100 : Math.Clamp((int)Math.Round(100.0 - used), 0, 100);
+        return new AiLimitWindow(windowShort, label, remaining, resetsAt, resetPassed);
+    }
+
+    // Reset times look like "Nov 27, 12:49am" or "5:29pm" in the CLI's time zone ("Asia/Kabul"), without a year
+    internal static DateTimeOffset? ParseClaudeResetTime(string when, string? timeZoneId, DateTimeOffset nowUtc)
+    {
+        string text = when.Trim();
+        if (text.Length == 0)
+        {
+            return null;
+        }
+
+        var tz = TimeZoneInfo.Local;
+        if (!string.IsNullOrWhiteSpace(timeZoneId) &&
+            TimeZoneInfo.TryFindSystemTimeZoneById(timeZoneId.Trim(), out var found))
+        {
+            tz = found;
+        }
+
+        string[] withDate = ["MMM d, h:mmtt", "MMM d, htt", "MMM d, h:mm tt", "MMM d, h tt", "MMM d h:mmtt", "MMM d htt", "MMM d"];
+        string[] timeOnly = ["h:mmtt", "htt", "h:mm tt", "h tt", "H:mm"];
+        var nowInTz = TimeZoneInfo.ConvertTime(nowUtc, tz).DateTime;
+        DateTime local;
+
+        if (DateTime.TryParseExact(text, withDate, CultureInfo.InvariantCulture, DateTimeStyles.AllowWhiteSpaces, out var parsed))
+        {
+            local = new DateTime(nowInTz.Year, parsed.Month, parsed.Day, parsed.Hour, parsed.Minute, 0, DateTimeKind.Unspecified);
+            if (local < nowInTz.AddDays(-2))
+            {
+                local = local.AddYears(1); // e.g. "Jan 2" seen on Dec 30
+            }
+        }
+        else if (DateTime.TryParseExact(text, timeOnly, CultureInfo.InvariantCulture, DateTimeStyles.AllowWhiteSpaces, out parsed))
+        {
+            local = new DateTime(nowInTz.Year, nowInTz.Month, nowInTz.Day, parsed.Hour, parsed.Minute, 0, DateTimeKind.Unspecified);
+            if (local < nowInTz)
+            {
+                local = local.AddDays(1);
+            }
+        }
+        else
+        {
+            return null;
+        }
+
+        try
+        {
+            return new DateTimeOffset(local, tz.GetUtcOffset(local)).ToUniversalTime();
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private static AiProviderUsage BuildClaudeCliStatus(string subtitle, string cardText, string note) => new(
+        Id: "claude",
+        Name: "Claude",
+        PlanSubtitle: ClaudeCliPlan,
+        HasData: false,
+        FiveHour: null,
+        Weekly: null,
+        UpdatedAtUtc: null,
+        UnavailableSubtitle: subtitle,
+        UnavailableCardText: cardText,
+        DetailsNote: note,
+        Url: "https://claude.ai/settings/usage");
+
+    // ---------------- Antigravity: `agy -p /usage` ----------------
+
+    // Returns the last Antigravity reading at once and, when it is due, starts a background
+    // `agy -p /usage` run; Updated fires when that run finishes so the band can redraw.
+    private AiProviderUsage GetAntigravityUsage(DateTimeOffset nowUtc, bool forceRefresh)
+    {
+        var (good, status) = _agyReader.Get(nowUtc, forceRefresh);
+        if (good is not null)
+        {
+            return RollCached(good, nowUtc);
+        }
+
+        return status ?? BuildAntigravityStatus(
+            "Checking /usage in agy…",
+            "CHECKING /USAGE IN AGY",
+            "DockPulse is reading your limits with `agy -p /usage`. This takes a few seconds.");
     }
 
     private static AiProviderUsage FetchAgyUsage()
@@ -337,25 +702,8 @@ public sealed class AiUsageService
                 "Install the Antigravity CLI (`agy`) and sign in once. DockPulse reads your limits from its `/usage` command.");
         }
 
-        var psi = new ProcessStartInfo(exe)
-        {
-            UseShellExecute = false,
-            RedirectStandardOutput = true,
-            RedirectStandardError = true,
-            CreateNoWindow = true,
-            StandardOutputEncoding = Encoding.UTF8,
-            StandardErrorEncoding = Encoding.UTF8,
-            WorkingDirectory = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
-        };
-        psi.ArgumentList.Add("-p");
-        psi.ArgumentList.Add("/usage");
-        psi.ArgumentList.Add("--output-format");
-        psi.ArgumentList.Add("json");
-        psi.ArgumentList.Add("--print-timeout");
-        psi.ArgumentList.Add("25s");
-
-        using var proc = Process.Start(psi);
-        if (proc is null)
+        var run = RunCli(exe, ["-p", "/usage", "--output-format", "json", "--print-timeout", "25s"]);
+        if (!run.Started)
         {
             return BuildAntigravityStatus(
                 "Couldn't start agy",
@@ -363,31 +711,17 @@ public sealed class AiUsageService
                 $"Starting `{exe}` failed.");
         }
 
-        // Read both streams while waiting so a full pipe can never block agy
-        var stdoutTask = proc.StandardOutput.ReadToEndAsync();
-        var stderrTask = proc.StandardError.ReadToEndAsync();
-
-        if (!proc.WaitForExit((int)AgyTimeout.TotalMilliseconds))
+        if (run.TimedOut)
         {
-            try
-            {
-                proc.Kill(entireProcessTree: true);
-            }
-            catch
-            {
-                // Already gone
-            }
-
             return BuildAntigravityStatus(
                 "agy /usage timed out",
                 "AGY /USAGE TIMED OUT",
-                $"`agy -p /usage` did not answer within {(int)AgyTimeout.TotalSeconds} seconds. DockPulse will try again in a few minutes.");
+                $"`agy -p /usage` did not answer within {(int)CliTimeout.TotalSeconds} seconds. DockPulse will try again in a few minutes.");
         }
 
-        string stdout = stdoutTask.GetAwaiter().GetResult();
-        _ = stderrTask.GetAwaiter().GetResult();
+        string stdout = run.Stdout;
 
-        if (proc.ExitCode == 2)
+        if (run.ExitCode == 2)
         {
             return BuildAntigravityStatus(
                 "No quota with an API key",
@@ -395,12 +729,12 @@ public sealed class AiUsageService
                 "agy is using a `GEMINI_API_KEY`, which has no account quota to show. Check the key's usage in AI Studio.");
         }
 
-        if (proc.ExitCode != 0)
+        if (run.ExitCode != 0)
         {
             return BuildAntigravityStatus(
                 "Couldn't read /usage from agy",
                 "COULDN'T READ /USAGE",
-                $"`agy -p /usage` exited with code {proc.ExitCode}. Run `agy` once in a terminal to check that you're signed in.");
+                $"`agy -p /usage` exited with code {run.ExitCode}. Run `agy` once in a terminal to check that you're signed in.");
         }
 
         return ParseAgyUsage(stdout, DateTimeOffset.UtcNow)
@@ -414,34 +748,7 @@ public sealed class AiUsageService
     {
         string local = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "agy", "bin", "agy.exe");
-        if (File.Exists(local))
-        {
-            return local;
-        }
-
-        string? path = Environment.GetEnvironmentVariable("PATH");
-        if (string.IsNullOrEmpty(path))
-        {
-            return null;
-        }
-
-        foreach (string dir in path.Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
-        {
-            try
-            {
-                string candidate = Path.Combine(dir, "agy.exe");
-                if (File.Exists(candidate))
-                {
-                    return candidate;
-                }
-            }
-            catch
-            {
-                // Skip malformed PATH entries
-            }
-        }
-
-        return null;
+        return File.Exists(local) ? local : FindOnPath("agy.exe");
     }
 
     private sealed record AgyGroup(string Name, AiLimitWindow? FiveHour, AiLimitWindow? Weekly)
