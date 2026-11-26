@@ -155,7 +155,7 @@
   .pal-top input:disabled { cursor: default; }
   .pal-body { flex: 1; min-height: 0; display: flex; }
   .list { flex: 1; min-width: 0; overflow-y: auto; padding: 4px; }
-  .list.with-details { flex: 0 0 52%; border-right: 1px solid var(--stroke); }
+  .list.with-details { flex: 1 1 auto; border-right: 1px solid var(--stroke); }
   .row {
     position: relative; display: flex; align-items: center; gap: 12px;
     padding: 8px 12px; border-radius: 4px; cursor: default; min-height: 52px;
@@ -194,7 +194,8 @@
   }
   .sec-hdr:first-child { margin-top: 0; border-top: 0; padding-top: 6px; }
 
-  .details { flex: 1; min-width: 0; overflow-y: auto; padding: 16px 18px; }
+  /* Same content width as Command Palette's details pane at its default size (~345 px); wider images get clipped */
+  .details { flex: 0 0 381px; min-width: 0; overflow-y: auto; overflow-x: hidden; padding: 16px 18px; }
   .details h2 { font-size: 18px; font-weight: 600; margin: 0 0 10px; }
 
   .content { flex: 1; overflow-y: auto; padding: 16px 20px; display: flex; flex-direction: column; gap: 10px; }
@@ -917,7 +918,7 @@ const PAGES = {
     const peakHour = formatPeakHour(s.hourly), peakDay = formatPeakDay(s.daily, s.monthAbbr);
     const avg = Math.floor(s.totalMonth / Math.max(1, s.curDay));
     // Details charts are rendered with isDarkTheme: true in NetworkUsagePage.cs, in both themes
-    const small = { dark: true, w: 400, h: 185 };
+    const small = { dark: true, w: 320, h: 185 };
     const charts = {
       today: { title: "Today Hourly", subtitle: `SINCE 00:00  |  PEAK: ${peakHour.toUpperCase()}`, buckets: s.hourly, active: s.curHour, ...small },
       month: { title: `${s.monthLabel} Daily`, subtitle: `PEAK: ${peakDay.toUpperCase()}  |  AVG: ${formatBytes(avg)}/DAY`, buckets: s.daily, active: s.curDay - 1, ...small },
@@ -1063,7 +1064,7 @@ const PAGES = {
     const items = [];
     for (const p of ai.providers) {
       const key = "ai-" + p.id;
-      charts[key] = { kind: "aiBars", provider: p, dark: true, w: 400, h: 175 };
+      charts[key] = { kind: "aiBars", provider: p, dark: true, w: 300, h: 175 };
       if (!p.signedIn) {
         const sub = p.unavailableSub || "No usage data available";
         items.push({
@@ -1619,7 +1620,7 @@ function drawChart(cv, spec) {
   const w = spec.w || 600, h = spec.h || 260, P = spec.dark ? PALETTES.dark : PALETTES.light;
   const dpr = Math.max(1, window.devicePixelRatio || 1);
   cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr);
-  cv.style.maxWidth = w + "px";
+  sizeChartCanvas(cv, w);
   const c = cv.getContext("2d");
   c.setTransform(dpr, 0, 0, dpr, 0, 0);
   c.textBaseline = "top";
@@ -1644,9 +1645,15 @@ function drawChart(cv, spec) {
   c.fillText(upperTitle, padL, big ? 14 : 16);
   if (spec.subtitle) { c.font = FONT1; c.fillStyle = rgb(P.text2); c.fillText(spec.subtitle, padL, big ? 34 : 30); }
 
+  // Same rule as NetworkChartRenderer (6 px per character): if the small title still runs into the legend,
+  // the legend moves to its own row under the subtitle
+  const px = s => s.length * 6 - 1;
+  const downSwPx = w - padR - px(upText) - swGap - sw - lgGap - px(downText) - swGap - sw;
+  const legendY = !big && padL + px(upperTitle) + 12 > downSwPx ? 44 : 16;
+
   c.font = FONT1;
-  box(downSwX, 17, sw, sw, 2, P.down); c.fillStyle = rgb(P.text1); c.fillText(downText, downX, 16);
-  box(upSwX, 17, sw, sw, 2, P.up); c.fillStyle = rgb(P.text1); c.fillText(upText, upX, 16);
+  box(downSwX, legendY + 1, sw, sw, 2, P.down); c.fillStyle = rgb(P.text1); c.fillText(downText, downX, legendY);
+  box(upSwX, legendY + 1, sw, sw, 2, P.up); c.fillStyle = rgb(P.text1); c.fillText(upText, upX, legendY);
 
   const plotL = 68, plotR = w - padR, plotT = 58, plotB = h - 34;
   const plotW = Math.max(40, plotR - plotL), plotH = Math.max(40, plotB - plotT);
@@ -1929,13 +1936,24 @@ function drawPrayerScheduleCard(cv, p) {
 /* =====================================================================
    AI Usage Limits card renderer (details pane PNG in C#)
    ===================================================================== */
+// Command Palette scales ImageContent down to fit, but a Markdown image in a details pane is shown at
+// its natural size and clipped, so details-pane charts are drawn full size here and the pane clips them.
+function sizeChartCanvas(cv, w) {
+  if (cv.closest && cv.closest(".details")) {
+    cv.style.width = w + "px";
+    cv.style.maxWidth = "none";
+  } else {
+    cv.style.maxWidth = w + "px";
+  }
+}
+
 function drawAiUsageCard(cv, spec) {
-  const w = spec.w || 400, h = spec.h || 175;
+  const w = spec.w || 300, h = spec.h || 175;
   const P = spec.dark ? PALETTES.dark : PALETTES.light;
   const p = spec.provider;
   const dpr = Math.max(1, window.devicePixelRatio || 1);
   cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr);
-  cv.style.maxWidth = w + "px";
+  sizeChartCanvas(cv, w);
   const c = cv.getContext("2d");
   c.setTransform(dpr, 0, 0, dpr, 0, 0);
   c.textBaseline = "top";

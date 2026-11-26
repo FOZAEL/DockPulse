@@ -7,7 +7,10 @@ namespace DockPulse.Services;
 
 public static class AiUsageChartRenderer
 {
-    public const int DefaultWidth = 400;
+    // The card is a Markdown image in the list's details pane, which shows images at their natural size and
+    // clips anything wider (about 345 px at Command Palette's default size). 300 px still fits the longest
+    // line ("ANTIGRAVITY CLI • CLAUDE AND GPT MODELS", ~233 px at 6 px per character) inside the padding.
+    public const int DefaultWidth = 300;
     public const int DefaultHeight = 175;
 
     private readonly record struct Rgba(byte R, byte G, byte B, byte A = 255);
