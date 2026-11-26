@@ -1,9 +1,13 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Globalization;
 using System.IO;
 using System.Linq;
+using System.Text;
 using System.Text.Json;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace DockPulse.Services;
 
@@ -75,12 +79,25 @@ public sealed class AiUsageService
 {
     private const int MaxCodexFilesToScan = 15;
 
-    public AiUsageSnapshot GetUsageSnapshot()
+    // agy contacts Google for every /usage call, so run it at most this often (manual refresh skips the wait)
+    private static readonly TimeSpan AgyRefreshInterval = TimeSpan.FromMinutes(5);
+    private static readonly TimeSpan AgyTimeout = TimeSpan.FromSeconds(30);
+
+    private readonly object _agyLock = new();
+    private AiProviderUsage? _agyLastGood;
+    private AiProviderUsage? _agyLastStatus;
+    private DateTimeOffset _agyLastAttemptUtc = DateTimeOffset.MinValue;
+    private int _agyFetching;
+
+    /// <summary>Raised on a thread-pool thread when a background Antigravity read finishes.</summary>
+    public event Action? Updated;
+
+    public AiUsageSnapshot GetUsageSnapshot(bool forceRefresh = false)
     {
         var nowUtc = DateTimeOffset.UtcNow;
 
         var claude = ReadClaudeUsage(nowUtc);
-        var antigravity = BuildAntigravityUsage();
+        var antigravity = GetAntigravityUsage(nowUtc, forceRefresh);
         var codex = ReadCodexUsage(nowUtc);
 
         AiProviderUsage[] providers = [claude, antigravity, codex];
@@ -210,18 +227,434 @@ public sealed class AiUsageService
         DetailsNote: $"Found `{cachePath}` without rate-limit windows. Rate limits appear after the first API response for Pro/Max/Ultra subscribers.",
         Url: url);
 
-    private static AiProviderUsage BuildAntigravityUsage() => new(
+    private const string AgyPlanPrefix = "Antigravity CLI";
+    private const string AgyUrl = "https://antigravity.google";
+
+    // Returns the last Antigravity reading at once and, when it is due, starts a background
+    // `agy -p /usage` run; Updated fires when that run finishes so the band can redraw.
+    private AiProviderUsage GetAntigravityUsage(DateTimeOffset nowUtc, bool forceRefresh)
+    {
+        AiProviderUsage? good;
+        AiProviderUsage? status;
+        bool due;
+        lock (_agyLock)
+        {
+            good = _agyLastGood;
+            status = _agyLastStatus;
+            due = forceRefresh || nowUtc - _agyLastAttemptUtc >= AgyRefreshInterval;
+        }
+
+        if (due)
+        {
+            StartAgyRefresh();
+        }
+
+        if (good is not null)
+        {
+            // A cached window whose reset time has passed is full again
+            return good with
+            {
+                FiveHour = RollWindow(good.FiveHour, nowUtc),
+                Weekly = RollWindow(good.Weekly, nowUtc),
+            };
+        }
+
+        return status ?? BuildAntigravityStatus(
+            "Checking /usage in agy…",
+            "CHECKING /USAGE IN AGY",
+            "DockPulse is reading your limits with `agy -p /usage`. This takes a few seconds.");
+    }
+
+    private static AiLimitWindow? RollWindow(AiLimitWindow? window, DateTimeOffset nowUtc)
+    {
+        if (window is null || window.ResetPassed || window.ResetsAtUtc is null || window.ResetsAtUtc.Value > nowUtc)
+        {
+            return window;
+        }
+
+        return window with { RemainingPercent = 100, ResetPassed = true };
+    }
+
+    private void StartAgyRefresh()
+    {
+        if (Interlocked.Exchange(ref _agyFetching, 1) == 1)
+        {
+            return;
+        }
+
+        lock (_agyLock)
+        {
+            _agyLastAttemptUtc = DateTimeOffset.UtcNow;
+        }
+
+        _ = Task.Run(() =>
+        {
+            try
+            {
+                var result = FetchAgyUsage();
+                lock (_agyLock)
+                {
+                    if (result.HasData)
+                    {
+                        _agyLastGood = result;
+                        _agyLastStatus = null;
+                    }
+                    else
+                    {
+                        // Keep showing the last good numbers (with their age) if a later read fails
+                        _agyLastStatus = result;
+                    }
+                }
+            }
+            catch
+            {
+                // Never let a failed agy run take the extension down
+            }
+            finally
+            {
+                Interlocked.Exchange(ref _agyFetching, 0);
+            }
+
+            try
+            {
+                Updated?.Invoke();
+            }
+            catch
+            {
+                // Ignore subscriber errors
+            }
+        });
+    }
+
+    private static AiProviderUsage FetchAgyUsage()
+    {
+        string? exe = FindAgyExecutable();
+        if (exe is null)
+        {
+            return BuildAntigravityStatus(
+                "agy CLI not found",
+                "AGY CLI NOT FOUND",
+                "Install the Antigravity CLI (`agy`) and sign in once. DockPulse reads your limits from its `/usage` command.");
+        }
+
+        var psi = new ProcessStartInfo(exe)
+        {
+            UseShellExecute = false,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            CreateNoWindow = true,
+            StandardOutputEncoding = Encoding.UTF8,
+            StandardErrorEncoding = Encoding.UTF8,
+            WorkingDirectory = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+        };
+        psi.ArgumentList.Add("-p");
+        psi.ArgumentList.Add("/usage");
+        psi.ArgumentList.Add("--output-format");
+        psi.ArgumentList.Add("json");
+        psi.ArgumentList.Add("--print-timeout");
+        psi.ArgumentList.Add("25s");
+
+        using var proc = Process.Start(psi);
+        if (proc is null)
+        {
+            return BuildAntigravityStatus(
+                "Couldn't start agy",
+                "COULDN'T START AGY",
+                $"Starting `{exe}` failed.");
+        }
+
+        // Read both streams while waiting so a full pipe can never block agy
+        var stdoutTask = proc.StandardOutput.ReadToEndAsync();
+        var stderrTask = proc.StandardError.ReadToEndAsync();
+
+        if (!proc.WaitForExit((int)AgyTimeout.TotalMilliseconds))
+        {
+            try
+            {
+                proc.Kill(entireProcessTree: true);
+            }
+            catch
+            {
+                // Already gone
+            }
+
+            return BuildAntigravityStatus(
+                "agy /usage timed out",
+                "AGY /USAGE TIMED OUT",
+                $"`agy -p /usage` did not answer within {(int)AgyTimeout.TotalSeconds} seconds. DockPulse will try again in a few minutes.");
+        }
+
+        string stdout = stdoutTask.GetAwaiter().GetResult();
+        _ = stderrTask.GetAwaiter().GetResult();
+
+        if (proc.ExitCode == 2)
+        {
+            return BuildAntigravityStatus(
+                "No quota with an API key",
+                "NO QUOTA WITH API KEY",
+                "agy is using a `GEMINI_API_KEY`, which has no account quota to show. Check the key's usage in AI Studio.");
+        }
+
+        if (proc.ExitCode != 0)
+        {
+            return BuildAntigravityStatus(
+                "Couldn't read /usage from agy",
+                "COULDN'T READ /USAGE",
+                $"`agy -p /usage` exited with code {proc.ExitCode}. Run `agy` once in a terminal to check that you're signed in.");
+        }
+
+        return ParseAgyUsage(stdout, DateTimeOffset.UtcNow)
+               ?? BuildAntigravityStatus(
+                   "Couldn't read /usage from agy",
+                   "COULDN'T READ /USAGE",
+                   "`agy -p /usage` answered, but not in a format DockPulse understands. A newer agy may have changed it.");
+    }
+
+    private static string? FindAgyExecutable()
+    {
+        string local = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "agy", "bin", "agy.exe");
+        if (File.Exists(local))
+        {
+            return local;
+        }
+
+        string? path = Environment.GetEnvironmentVariable("PATH");
+        if (string.IsNullOrEmpty(path))
+        {
+            return null;
+        }
+
+        foreach (string dir in path.Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        {
+            try
+            {
+                string candidate = Path.Combine(dir, "agy.exe");
+                if (File.Exists(candidate))
+                {
+                    return candidate;
+                }
+            }
+            catch
+            {
+                // Skip malformed PATH entries
+            }
+        }
+
+        return null;
+    }
+
+    private sealed record AgyGroup(string Name, AiLimitWindow? FiveHour, AiLimitWindow? Weekly)
+    {
+        public int Tightest => Math.Min(FiveHour?.RemainingPercent ?? 100, Weekly?.RemainingPercent ?? 100);
+    }
+
+    // `agy -p /usage --output-format json` prints {"response": "<tab-separated table>", "command": {"data": {"groups": [...]}}}.
+    // Each group (e.g. "Gemini Models", "Claude and GPT models") has a 5h and a weekly bucket with
+    // remaining_fraction and reset_time; a reset_time of 1970 means the window has not started (full).
+    internal static AiProviderUsage? ParseAgyUsage(string stdout, DateTimeOffset nowUtc)
+    {
+        var groups = new List<AgyGroup>();
+
+        string[] lines = stdout.Split('\n');
+        for (int li = lines.Length - 1; li >= 0; li--)
+        {
+            string line = lines[li].Trim();
+            if (!line.StartsWith('{'))
+            {
+                continue;
+            }
+
+            try
+            {
+                using var doc = JsonDocument.Parse(line);
+                var root = doc.RootElement;
+
+                if (root.TryGetProperty("command", out var command) && command.ValueKind == JsonValueKind.Object &&
+                    command.TryGetProperty("data", out var data) && data.ValueKind == JsonValueKind.Object &&
+                    data.TryGetProperty("groups", out var groupArray) && groupArray.ValueKind == JsonValueKind.Array)
+                {
+                    foreach (var group in groupArray.EnumerateArray())
+                    {
+                        string name = group.TryGetProperty("name", out var n) && n.ValueKind == JsonValueKind.String
+                            ? n.GetString() ?? "Models"
+                            : "Models";
+                        AiLimitWindow? fiveHour = null;
+                        AiLimitWindow? weekly = null;
+
+                        if (group.TryGetProperty("buckets", out var buckets) && buckets.ValueKind == JsonValueKind.Array)
+                        {
+                            foreach (var bucket in buckets.EnumerateArray())
+                            {
+                                string window = bucket.TryGetProperty("window", out var w) && w.ValueKind == JsonValueKind.String
+                                    ? w.GetString() ?? string.Empty
+                                    : string.Empty;
+                                if (!TryReadDouble(bucket, "remaining_fraction", out double fraction))
+                                {
+                                    continue;
+                                }
+
+                                var parsed = BuildAgyWindow(window, fraction * 100.0, TryParseTimestamp(bucket, "reset_time"), nowUtc);
+                                if (parsed is null)
+                                {
+                                    continue;
+                                }
+
+                                if (parsed.WindowShort == "5h")
+                                {
+                                    fiveHour = parsed;
+                                }
+                                else
+                                {
+                                    weekly = parsed;
+                                }
+                            }
+                        }
+
+                        if (fiveHour is not null || weekly is not null)
+                        {
+                            groups.Add(new AgyGroup(name, fiveHour, weekly));
+                        }
+                    }
+                }
+                else if (root.TryGetProperty("response", out var response) && response.ValueKind == JsonValueKind.String)
+                {
+                    groups.AddRange(ParseAgyUsageTable(response.GetString() ?? string.Empty, nowUtc));
+                }
+            }
+            catch
+            {
+                continue;
+            }
+
+            if (groups.Count > 0)
+            {
+                break;
+            }
+        }
+
+        if (groups.Count == 0)
+        {
+            // Plain-text output (no --output-format json): Group<TAB>Window name<TAB>NN%<TAB>reset ISO time
+            groups.AddRange(ParseAgyUsageTable(stdout, nowUtc));
+        }
+
+        if (groups.Count == 0)
+        {
+            return null;
+        }
+
+        // Show the group closest to its limit; ties keep agy's order (Gemini first)
+        var shown = groups[0];
+        foreach (var group in groups.Skip(1))
+        {
+            if (group.Tightest < shown.Tightest)
+            {
+                shown = group;
+            }
+        }
+
+        return new AiProviderUsage(
+            Id: "antigravity",
+            Name: "Antigravity",
+            PlanSubtitle: $"{AgyPlanPrefix} • {shown.Name}",
+            HasData: true,
+            FiveHour: shown.FiveHour,
+            Weekly: shown.Weekly,
+            UpdatedAtUtc: nowUtc,
+            UnavailableSubtitle: string.Empty,
+            UnavailableCardText: string.Empty,
+            DetailsNote: "Source: `agy -p /usage`",
+            Url: AgyUrl);
+    }
+
+    private static List<AgyGroup> ParseAgyUsageTable(string text, DateTimeOffset nowUtc)
+    {
+        var byName = new Dictionary<string, (AiLimitWindow? FiveHour, AiLimitWindow? Weekly)>(StringComparer.Ordinal);
+        var order = new List<string>();
+
+        foreach (string rawLine in text.Split('\n'))
+        {
+            string[] parts = rawLine.Trim().Split('\t');
+            if (parts.Length < 4)
+            {
+                continue;
+            }
+
+            string pct = parts[2].Trim().TrimEnd('%');
+            if (!double.TryParse(pct, NumberStyles.Float, CultureInfo.InvariantCulture, out double remaining))
+            {
+                continue;
+            }
+
+            string windowName = parts[1];
+            string window = windowName.Contains("Five Hour", StringComparison.OrdinalIgnoreCase) ||
+                            windowName.Contains("5h", StringComparison.OrdinalIgnoreCase)
+                ? "5h"
+                : windowName.Contains("Week", StringComparison.OrdinalIgnoreCase) ? "weekly" : string.Empty;
+
+            DateTimeOffset? reset = DateTimeOffset.TryParse(
+                parts[3].Trim(),
+                CultureInfo.InvariantCulture,
+                DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal,
+                out var dto)
+                ? dto
+                : null;
+
+            var parsed = BuildAgyWindow(window, remaining, reset, nowUtc);
+            if (parsed is null)
+            {
+                continue;
+            }
+
+            string name = parts[0].Trim();
+            if (!byName.TryGetValue(name, out var entry))
+            {
+                order.Add(name);
+                entry = (null, null);
+            }
+
+            byName[name] = parsed.WindowShort == "5h" ? (parsed, entry.Weekly) : (entry.FiveHour, parsed);
+        }
+
+        return order.Select(n => new AgyGroup(n, byName[n].FiveHour, byName[n].Weekly)).ToList();
+    }
+
+    private static AiLimitWindow? BuildAgyWindow(string window, double remainingPercent, DateTimeOffset? resetsAt, DateTimeOffset nowUtc)
+    {
+        bool isFiveHour = string.Equals(window, "5h", StringComparison.OrdinalIgnoreCase);
+        bool isWeekly = string.Equals(window, "weekly", StringComparison.OrdinalIgnoreCase);
+        if ((!isFiveHour && !isWeekly) || double.IsNaN(remainingPercent) || double.IsInfinity(remainingPercent))
+        {
+            return null;
+        }
+
+        // agy reports 1970-01-01 for a window that has not started yet
+        if (resetsAt is not null && resetsAt.Value.Year < 2000)
+        {
+            resetsAt = null;
+        }
+
+        bool resetPassed = resetsAt is not null && resetsAt.Value <= nowUtc;
+        int remaining = resetPassed ? 100 : Math.Clamp((int)Math.Round(remainingPercent), 0, 100);
+
+        return isFiveHour
+            ? new AiLimitWindow("5h", "5-Hour Window", remaining, resetsAt, resetPassed)
+            : new AiLimitWindow("Wk", "Weekly Limit", remaining, resetsAt, resetPassed);
+    }
+
+    private static AiProviderUsage BuildAntigravityStatus(string subtitle, string cardText, string note) => new(
         Id: "antigravity",
         Name: "Antigravity",
-        PlanSubtitle: "Antigravity CLI & IDE • No local source",
+        PlanSubtitle: $"{AgyPlanPrefix} • /usage",
         HasData: false,
         FiveHour: null,
         Weekly: null,
         UpdatedAtUtc: null,
-        UnavailableSubtitle: "Check /usage in agy",
-        UnavailableCardText: "CHECK /USAGE IN AGY",
-        DetailsNote: "Antigravity does not expose a local usage file. Run `/usage` in `agy` to view your current limits.",
-        Url: "https://antigravity.google");
+        UnavailableSubtitle: subtitle,
+        UnavailableCardText: cardText,
+        DetailsNote: note,
+        Url: AgyUrl);
 
     private static AiProviderUsage ReadCodexUsage(DateTimeOffset nowUtc)
     {

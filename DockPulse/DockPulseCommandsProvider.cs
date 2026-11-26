@@ -80,7 +80,7 @@ public partial class DockPulseCommandsProvider : CommandProvider
         _wirelessPage.OnManualRefresh = () => _ = _wirelessDockItem.RefreshAsync(forceUncached: true);
         _networkPage.OnManualRefresh = () => _ = _networkDockItem.RefreshAsync();
         _prayerPage.OnManualRefresh = () => _prayerDockItem.Refresh();
-        _aiUsagePage.OnManualRefresh = () => _aiUsageDockItem.Refresh();
+        _aiUsagePage.OnManualRefresh = () => _aiUsageDockItem.RefreshNow();
 
         _topLevelCommands =
         [

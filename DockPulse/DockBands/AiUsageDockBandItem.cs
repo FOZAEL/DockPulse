@@ -26,15 +26,23 @@ internal sealed partial class AiUsageDockBandItem : ListItem, IDisposable
 
         MoreCommands =
         [
-            new CommandContextItem(new ActionCommand("Refresh AI Usage", Refresh, new IconInfo("\uE72C"))),
+            new CommandContextItem(new ActionCommand("Refresh AI Usage", RefreshNow, new IconInfo("\uE72C"))),
             new CommandContextItem(new OpenUriCommand("Open Claude Usage", "https://claude.ai/settings/usage", new IconInfo("\uE774"))),
             new CommandContextItem(new OpenUriCommand("Open Codex Usage", "https://chatgpt.com/codex/settings/usage", new IconInfo("\uE774"))),
         ];
 
+        // Antigravity is read in the background; redraw as soon as that read finishes
+        _service.Updated += Refresh;
+
         _timer = new Timer(_ => Refresh(), null, TimeSpan.Zero, TimeSpan.FromSeconds(60));
     }
 
-    public void Refresh()
+    public void Refresh() => Refresh(forceRefresh: false);
+
+    /// <summary>Manual refresh: also re-runs `agy -p /usage` instead of waiting for its 5-minute interval.</summary>
+    public void RefreshNow() => Refresh(forceRefresh: true);
+
+    private void Refresh(bool forceRefresh)
     {
         if (Interlocked.Exchange(ref _isRefreshing, 1) == 1)
         {
@@ -43,7 +51,7 @@ internal sealed partial class AiUsageDockBandItem : ListItem, IDisposable
 
         try
         {
-            var snapshot = _service.GetUsageSnapshot();
+            var snapshot = _service.GetUsageSnapshot(forceRefresh);
             _page.UpdateSnapshot(snapshot);
 
             if (snapshot.Tightest is null)
@@ -76,6 +84,7 @@ internal sealed partial class AiUsageDockBandItem : ListItem, IDisposable
 
     public void Dispose()
     {
+        _service.Updated -= Refresh;
         _timer.Dispose();
     }
 }
