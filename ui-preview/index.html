@@ -323,6 +323,7 @@
         <option value="low">Low battery + charging</option>
         <option value="nodevices">No wireless devices</option>
         <option value="notraffic">No network traffic yet</option>
+        <option value="folder_missing">Working folder missing</option>
       </select>
     </label>
     <label>Clock <input type="time" id="clock" value="14:11"></label>
@@ -528,6 +529,7 @@ const state = {
   clock: T("14:11"),
   prayer: { regionId: "kabul", methodId: "karachi", asr: "Hanafi", notifications: true },
   wireless: { pinnedId: "mouse-pro-x2", pinnedName: "PRO X2 SUPERSTRIKE" },
+  workFolder: { path: "C:\\Dev\\DockPulse" },
   today: {
     nextId: 6,
     water: 3,
@@ -821,7 +823,41 @@ const PAGES = {
         { icon: "\uE99A", title: "AI Usage Limits", subtitle: "5-hour session and weekly remaining limits for Claude, Antigravity, and Codex", tags: ["DockPulse"], cmd: { name: "AI Usage", ...go("aiUsage") } },
         { icon: "\uE9D5", title: "Today — Daily Checklist", subtitle: "Daily habits, water counter, coffee reminder, and midnight-resetting tasks", tags: ["DockPulse"], cmd: { name: "Today", ...go("today") } },
         { icon: "\uE916", title: "Pomodoro Timer", subtitle: "Focus timer ring, breaks, session stats, and quick Dock controls", tags: ["DockPulse"], cmd: { name: "Pomodoro", ...go("pomodoro") } },
+        { icon: "\uE8B7", title: "Open Working Folder", subtitle: "Open your working folder in File Explorer with one click", tags: ["DockPulse"], cmd: { name: "Open in File Explorer", run: wfOpenExplorer } },
       ],
+    };
+  },
+
+  workFolderSettings() {
+    const wf = state.workFolder;
+    return {
+      kind: "content",
+      name: "Change Folder",
+      title: "Working Folder",
+      icon: "\uE8B7",
+      content: [{
+        form: {
+          title: "Working Folder",
+          desc: "The Dock band opens this folder in File Explorer with one click.",
+          fields: [
+            { id: "path", type: "text", label: "Folder path", value: wf.path, placeholder: "C:\\Dev\\MyProject" },
+          ],
+          actions: [
+            { id: "save", label: "Save Folder", primary: true, submit: true },
+            { id: "cancel", label: "Cancel" },
+          ],
+          onAction(actionId, vals) {
+            if (actionId === "cancel") { goBack(); return; }
+            const p = String(vals.path || "").trim().replace(/^"|"$/g, "").replace(/[\\/]+$/, "");
+            if (!p) return "Enter a folder path.";
+            // The real form checks Directory.Exists; the mock treats paths containing "missing" as not found
+            if (/missing/i.test(p)) return `Folder not found: ${p}`;
+            wf.path = /^[A-Za-z]:$/.test(p) ? p + "\\" : p;
+            goBack();
+            toast(`Working folder: ${wf.path}`);
+          },
+        },
+      }],
     };
   },
 
@@ -1526,7 +1562,39 @@ function dockBands() {
         { icon: "\uE713", name: "Pomodoro Settings", ...go("pomodoroSettings") },
       ],
     },
+    wfBand(),
   ];
+}
+
+/* Working Folder band (DockBands/WorkingFolderDockBandItem.cs): one click opens the folder in File Explorer */
+const wfExists = () => state.scenario !== "folder_missing";
+function wfName(path) {
+  const trimmed = path.replace(/[\\/]+$/, "");
+  const i = trimmed.lastIndexOf("\\");
+  return i < 0 || /^[A-Za-z]:$/.test(trimmed) ? path : trimmed.slice(i + 1);
+}
+function wfParent(path) {
+  const trimmed = path.replace(/[\\/]+$/, "");
+  if (/^[A-Za-z]:$/.test(trimmed)) return "Drive";
+  const i = trimmed.lastIndexOf("\\");
+  const parent = trimmed.slice(0, i);
+  return /^[A-Za-z]:$/.test(parent) ? parent + "\\" : parent;
+}
+function wfOpenExplorer() {
+  if (!wfExists()) { toast(`Folder not found: ${state.workFolder.path}`); return; }
+  toast(`Would open ${state.workFolder.path} in File Explorer`);
+}
+function wfBand() {
+  const path = state.workFolder.path;
+  const more = [
+    { icon: "\uE943", name: "Open in VS Code", run: () => toast(`Would open ${path} in VS Code`) },
+    { icon: "\uE756", name: "Open in Terminal", run: () => toast(`Would open a terminal in ${path}`) },
+    { icon: "\uE8C8", name: "Copy Path", run: () => toast(`Copied ${path}`) },
+    { icon: "\uE70F", name: "Change Folder...", ...go("workFolderSettings") },
+  ];
+  return wfExists()
+    ? { label: "Working Folder", run: wfOpenExplorer, icon: "\uE8B7", title: wfName(path), subtitle: wfParent(path), more }
+    : { label: "Working Folder", page: "workFolderSettings", icon: "\uE7BA", title: "Folder missing", subtitle: path, more };
 }
 
 /* =====================================================================
@@ -2131,7 +2199,8 @@ function renderDock() {
     el.className = "band" + (b.page === open ? " open" : "");
     el.title = b.label;
     el.innerHTML = `<span class="ic">${b.icon}</span><span><div class="t">${esc(b.title)}</div><div class="s">${esc(b.subtitle)}</div></span>`;
-    el.addEventListener("click", () => openPage(b.page, true));
+    // A band either opens its page or, like Working Folder, runs its command directly
+    el.addEventListener("click", () => { if (b.run) { b.run(); render(); } else openPage(b.page, true); });
     el.addEventListener("contextmenu", e => { e.preventDefault(); showMenu(b.more, e.clientX, e.clientY); });
     if (b.quickAction) {
       const grp = document.createElement("div");

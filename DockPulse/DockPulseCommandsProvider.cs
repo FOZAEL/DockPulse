@@ -1,3 +1,4 @@
+using DockPulse.Commands;
 using DockPulse.DockBands;
 using DockPulse.Pages;
 using DockPulse.Services;
@@ -35,6 +36,11 @@ public partial class DockPulseCommandsProvider : CommandProvider
     private readonly TodayDockBandItem _todayDockItem;
     private readonly PomodoroDockBandItem _pomodoroDockItem;
     private readonly PomodoroToggleDockItem _pomodoroToggleDockItem;
+
+    private readonly WorkingFolderService _workFolderService;
+    private readonly WorkingFolderSettingsPage _workFolderSettingsPage;
+    private readonly OpenWorkingFolderCommand _openWorkFolderCommand;
+    private readonly WorkingFolderDockBandItem _workFolderDockItem;
 
     private readonly ICommandItem[] _topLevelCommands;
     private readonly ICommandItem[] _dockBands;
@@ -76,6 +82,11 @@ public partial class DockPulseCommandsProvider : CommandProvider
         _todayDockItem = new TodayDockBandItem(_todayService, _todayPage, _todayAddPage, _todaySettingsPage);
         _pomodoroDockItem = new PomodoroDockBandItem(_pomodoroService, _pomodoroPage, _pomodoroStatsPage, _pomodoroSettingsPage);
         _pomodoroToggleDockItem = new PomodoroToggleDockItem(_pomodoroService, _pomodoroDockItem);
+
+        _workFolderService = new WorkingFolderService();
+        _workFolderSettingsPage = new WorkingFolderSettingsPage(_workFolderService);
+        _openWorkFolderCommand = new OpenWorkingFolderCommand(_workFolderService);
+        _workFolderDockItem = new WorkingFolderDockBandItem(_workFolderService, _workFolderSettingsPage, _openWorkFolderCommand);
 
         _wirelessPage.OnManualRefresh = () => _ = _wirelessDockItem.RefreshAsync(forceUncached: true);
         _networkPage.OnManualRefresh = () => _ = _networkDockItem.RefreshAsync();
@@ -120,6 +131,12 @@ public partial class DockPulseCommandsProvider : CommandProvider
                 Subtitle = "Focus timer ring, breaks, session stats, and quick Dock controls",
                 Icon = new IconInfo("\uE916"),
             },
+            new CommandItem(_openWorkFolderCommand)
+            {
+                Title = "Open Working Folder",
+                Subtitle = "Open your working folder in File Explorer with one click",
+                Icon = new IconInfo("\uE8B7"),
+            },
         ];
 
         _dockBands =
@@ -148,6 +165,10 @@ public partial class DockPulseCommandsProvider : CommandProvider
                 [_pomodoroDockItem, _pomodoroToggleDockItem],
                 "com.dockpulse.band.pomodoro",
                 "Pomodoro"),
+            new WrappedDockItem(
+                [_workFolderDockItem],
+                "com.dockpulse.band.workfolder",
+                "Working Folder"),
         ];
     }
 
@@ -233,6 +254,16 @@ public partial class DockPulseCommandsProvider : CommandProvider
             };
         }
 
+        if (_workFolderSettingsPage.Id == id)
+        {
+            return new CommandItem(_workFolderSettingsPage)
+            {
+                Title = "Change Working Folder",
+                Subtitle = "Choose the folder the Working Folder band opens",
+                Icon = new IconInfo("\uE70F"),
+            };
+        }
+
         return null;
     }
 
@@ -248,5 +279,6 @@ public partial class DockPulseCommandsProvider : CommandProvider
         _pomodoroPage.Dispose();
         _pomodoroStatsPage.Dispose();
         _pomodoroService.Dispose();
+        _workFolderDockItem.Dispose();
     }
 }

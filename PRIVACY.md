@@ -8,6 +8,7 @@ DockPulse runs 100% locally on your Windows device. DockPulse itself does not ma
 - **Network Usage:** Local Windows Data Usage (SRUM) statistics via `Windows.Networking.Connectivity`.
 - **Prayer Times:** Computed offline using astronomical equations and locally saved region/method preferences (`prayer.cfg`).
 - **Today Checklist & Pomodoro Timer:** Stored locally in your DockPulse settings folder (`today.json`, `pomodoro.json`, and `wireless.cfg` for the pinned Bluetooth device).
+- **Working Folder:** The folder path you choose, saved locally in `workfolder.cfg`. DockPulse only opens it in File Explorer, VS Code or a terminal when you click; it never reads the folder's contents.
 - **AI Usage Limits (DockPulse makes no network calls and reads no OAuth tokens or credential files):**
   - **Claude:** Reads `%USERPROFILE%\.claude\dockpulse-usage.json`. DockPulse never modifies `%USERPROFILE%\.claude\settings.json`; Claude usage data appears only after you manually configure Claude Code's `statusLine` script to write that cache file.
   - **Codex:** Reads the newest local `%USERPROFILE%\.codex\sessions\YYYY\MM\DD\rollout-*.jsonl` session logs for `rate_limits` events.
