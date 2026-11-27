@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.IO.Compression;
 
@@ -12,18 +13,23 @@ public static class AiUsageChartRenderer
     // line ("ANTIGRAVITY CLI • CLAUDE AND GPT MODELS", ~233 px at 6 px per character) inside the padding.
     public const int DefaultWidth = 300;
     public const int DefaultHeight = 175;
+    public const int CompareDashboardWidth = 480;
+    public const int CompareDashboardHeight = 245;
 
     private readonly record struct Rgba(byte R, byte G, byte B, byte A = 255);
 
     private static readonly Rgba CardBg = new(28, 32, 40);
     private static readonly Rgba CardBorder = new(52, 59, 74);
+    private static readonly Rgba GridLine = new(44, 50, 64);
     private static readonly Rgba TrackBg = new(36, 41, 52);
     private static readonly Rgba TextPrimary = new(241, 245, 249);
     private static readonly Rgba TextSecondary = new(156, 168, 188);
     private static readonly Rgba CyanBar = new(56, 189, 248);
     private static readonly Rgba VioletBar = new(167, 139, 250);
     private static readonly Rgba WarnBar = new(245, 158, 11);
+    private static readonly Rgba WarnText = new(251, 191, 36);
     private static readonly Rgba DangerBar = new(244, 63, 94);
+    private static readonly Rgba DangerOutline = new(244, 63, 94, 140);
     private static readonly Rgba DangerText = new(251, 113, 133);
 
     public static string RenderProviderCardDataUri(
@@ -42,15 +48,21 @@ public static class AiUsageChartRenderer
         int width = DefaultWidth,
         int height = DefaultHeight)
     {
-        var canvas = new CardCanvas(width, height);
+        var canvas = new PixelCanvas(width, height);
         canvas.FillRoundedRect(0, 0, width, height, 12, CardBg);
         canvas.DrawRoundedRectBorder(0, 0, width, height, 12, CardBorder);
 
         const int padL = 18;
         const int padR = 18;
+        const int logoSize = 16;
         int barW = width - padL - padR;
 
-        canvas.DrawText($"{provider.Name.ToUpperInvariant()} USAGE", padL, 14, TextPrimary, scale: 2);
+        if (AiLogos.TryGetChartLogo(provider.Id, logoSize, out var logo))
+        {
+            canvas.BlendImage(logo.Rgba, logo.Width, logo.Height, padL, 13, opacity: 1.0);
+        }
+
+        canvas.DrawText($"{provider.Name.ToUpperInvariant()} USAGE", padL + logoSize + 6, 14, TextPrimary, scale: 2);
         canvas.DrawText(provider.PlanSubtitle.ToUpperInvariant(), padL, 34, TextSecondary, scale: 1);
 
         if (!provider.HasData)
@@ -58,7 +70,7 @@ public static class AiUsageChartRenderer
             canvas.FillRoundedRect(padL, 68, barW, 12, 6, TrackBg);
             canvas.FillRoundedRect(padL, 122, barW, 12, 6, TrackBg);
             string msg = provider.UnavailableCardText.ToUpperInvariant();
-            int msgW = CardCanvas.MeasureText(msg, scale: 1);
+            int msgW = PixelCanvas.MeasureText(msg, scale: 1);
             canvas.DrawText(msg, Math.Max(padL, (width - msgW) / 2), 95, TextSecondary, scale: 1);
             return EncodePng(canvas.RgbaBytes, width, height);
         }
@@ -69,8 +81,183 @@ public static class AiUsageChartRenderer
         return EncodePng(canvas.RgbaBytes, width, height);
     }
 
+    public static string RenderCompareCardDataUri(
+        AiUsageSnapshot snapshot,
+        bool weekly,
+        DateTimeOffset nowUtc,
+        int width = DefaultWidth,
+        int height = DefaultHeight)
+    {
+        byte[] png = RenderCompareCardPng(snapshot, weekly, nowUtc, width, height);
+        return $"data:image/png;base64,{Convert.ToBase64String(png)}";
+    }
+
+    public static byte[] RenderCompareCardPng(
+        AiUsageSnapshot snapshot,
+        bool weekly,
+        DateTimeOffset nowUtc,
+        int width = CompareDashboardWidth,
+        int height = CompareDashboardHeight)
+    {
+        var canvas = new PixelCanvas(width, height);
+        canvas.FillRoundedRect(0, 0, width, height, 12, CardBg);
+        canvas.DrawRoundedRectBorder(0, 0, width, height, 12, CardBorder);
+
+        const int padL = 18;
+        const int padR = 18;
+        int rightEdge = width - padR;
+        int barW = width - padL - padR;
+
+        string title = weekly ? "WEEKLY LIMIT" : "5-HOUR WINDOW";
+        var providers = snapshot.Providers;
+
+        string? tightName = null;
+        int tightPct = int.MaxValue;
+        for (int i = 0; i < providers.Count; i++)
+        {
+            var p = providers[i];
+            if (!p.HasData)
+            {
+                continue;
+            }
+
+            var w = weekly ? p.Weekly : p.FiveHour;
+            if (w is null)
+            {
+                continue;
+            }
+
+            if (w.RemainingPercent < tightPct)
+            {
+                tightPct = w.RemainingPercent;
+                tightName = p.Name;
+            }
+        }
+
+        string checkedAt = snapshot.CheckedAt.ToString("HH:mm:ss", CultureInfo.InvariantCulture);
+        string sub = tightName is not null
+            ? string.Create(CultureInfo.InvariantCulture, $"TIGHTEST: {tightName.ToUpperInvariant()} {tightPct}%  |  CHECKED {checkedAt}")
+            : $"NO DATA  |  CHECKED {checkedAt}";
+
+        canvas.DrawText(title, padL, 14, TextPrimary, scale: 2);
+        canvas.DrawText(sub, padL, 34, TextSecondary, scale: 1);
+
+        bool compact = height <= 190;
+        int rowStart = compact ? 54 : 64;
+        int rowStep = compact ? 38 : 54;
+        int barOffset = compact ? 14 : 17;
+        int barH = compact ? 11 : 16;
+        int logoSize = compact ? 12 : 14;
+        int logoOffsetY = compact ? -2 : -3;
+        int nameX = padL + logoSize + 5;
+        Rgba accentCol = weekly ? VioletBar : CyanBar;
+
+        if (!compact && providers.Count > 0)
+        {
+            int gTop = rowStart + barOffset - 4;
+            int gBot = rowStart + ((providers.Count - 1) * rowStep) + barOffset + barH + 4;
+            double[] fracs = [0.25, 0.5, 0.75];
+            foreach (double frac in fracs)
+            {
+                int gx = (int)Math.Round(padL + (barW * frac));
+                canvas.DrawDashedVLine(gx, gTop, gBot, GridLine);
+            }
+        }
+
+        for (int idx = 0; idx < providers.Count; idx++)
+        {
+            var p = providers[idx];
+            int y = rowStart + (idx * rowStep);
+            int by = y + barOffset;
+            var window = p.HasData ? (weekly ? p.Weekly : p.FiveHour) : null;
+
+            if (!p.HasData || window is null)
+            {
+                if (AiLogos.TryGetChartLogo(p.Id, logoSize, out var dimLogo))
+                {
+                    canvas.BlendImage(dimLogo.Rgba, dimLogo.Width, dimLogo.Height, padL, y + logoOffsetY, opacity: 0.55);
+                }
+
+                canvas.DrawText(p.Name, nameX, y, TextSecondary, scale: 1);
+
+                string unavail = !p.HasData && !string.IsNullOrWhiteSpace(p.UnavailableSubtitle)
+                    ? p.UnavailableSubtitle
+                    : "No data";
+                int maxRightPx = Math.Max(24, rightEdge - (nameX + PixelCanvas.MeasureText(p.Name, scale: 1) + 8));
+                string rightText = FitText(unavail, maxRightPx);
+                int rightW = PixelCanvas.MeasureText(rightText, scale: 1);
+                canvas.DrawText(rightText, rightEdge - rightW, y, TextSecondary, scale: 1);
+
+                canvas.FillRoundedRect(padL, by, barW, barH, barH / 2, TrackBg);
+                continue;
+            }
+
+            int pct = window.RemainingPercent;
+            string resetShort = window.FormatResetShort(nowUtc);
+            Rgba fillCol = pct == 0 ? DangerBar : pct <= 25 ? WarnBar : accentCol;
+            Rgba txtCol = pct == 0 ? DangerText : pct <= 25 ? WarnText : TextPrimary;
+
+            if (AiLogos.TryGetChartLogo(p.Id, logoSize, out var logo))
+            {
+                canvas.BlendImage(logo.Rgba, logo.Width, logo.Height, padL, y + logoOffsetY, opacity: 1.0);
+            }
+
+            string leftLabel = string.Create(CultureInfo.InvariantCulture, $"{p.Name}  {pct}%");
+            canvas.DrawText(leftLabel, nameX, y, txtCol, scale: 1);
+
+            string resetLabel = string.Equals(resetShort, "Reset", StringComparison.Ordinal)
+                ? "window reset"
+                : $"resets in {resetShort}";
+            int resetW = PixelCanvas.MeasureText(resetLabel, scale: 1);
+            canvas.DrawText(resetLabel, rightEdge - resetW, y, pct == 0 ? DangerText : TextSecondary, scale: 1);
+
+            canvas.FillRoundedRect(padL, by, barW, barH, barH / 2, TrackBg);
+            if (pct > 0)
+            {
+                int fw = Math.Max(barH, (int)Math.Round(barW * Math.Min(100, pct) / 100.0));
+                canvas.FillRoundedRect(padL, by, fw, barH, barH / 2, fillCol);
+            }
+            else
+            {
+                canvas.DrawRoundedRectBorder(padL, by, barW, barH, barH / 2, DangerOutline);
+            }
+        }
+
+        if (!compact)
+        {
+            int scaleY = height - 20;
+            canvas.DrawText("0%", padL, scaleY, TextSecondary, scale: 1);
+
+            const string mid = "50%";
+            int midW = PixelCanvas.MeasureText(mid, scale: 1);
+            canvas.DrawText(mid, padL + (barW / 2) - (midW / 2), scaleY, TextSecondary, scale: 1);
+
+            const string full = "100%";
+            int fullW = PixelCanvas.MeasureText(full, scale: 1);
+            canvas.DrawText(full, rightEdge - fullW, scaleY, TextSecondary, scale: 1);
+        }
+
+        return EncodePng(canvas.RgbaBytes, width, height);
+    }
+
+    private static string FitText(string text, int maxWidthPx)
+    {
+        if (PixelCanvas.MeasureText(text, scale: 1) <= maxWidthPx)
+        {
+            return text;
+        }
+
+        int maxChars = Math.Max(1, (maxWidthPx + 1) / 6);
+        if (maxChars <= 3)
+        {
+            return text[..Math.Min(text.Length, maxChars)];
+        }
+
+        return string.Concat(text.AsSpan(0, Math.Min(text.Length, maxChars - 3)).TrimEnd(), "...");
+    }
+
     private static void DrawWindowRow(
-        CardCanvas canvas,
+        PixelCanvas canvas,
         AiLimitWindow? window,
         string fallbackLabel,
         Rgba defaultColor,
@@ -84,7 +271,7 @@ public static class AiUsageChartRenderer
         {
             canvas.DrawText(fallbackLabel, padL, rowY, TextPrimary, scale: 1);
             const string noData = "NO DATA";
-            int ndW = CardCanvas.MeasureText(noData, scale: 1);
+            int ndW = PixelCanvas.MeasureText(noData, scale: 1);
             canvas.DrawText(noData, rightEdge - ndW, rowY, TextSecondary, scale: 1);
             canvas.FillRoundedRect(padL, rowY + 15, barW, 11, 5, TrackBg);
             canvas.DrawText("WINDOW NOT REPORTED", padL, rowY + 31, TextSecondary, scale: 1);
@@ -96,8 +283,8 @@ public static class AiUsageChartRenderer
         Rgba pctCol = pct == 0 ? DangerText : TextPrimary;
 
         canvas.DrawText(window.Label.ToUpperInvariant(), padL, rowY, TextPrimary, scale: 1);
-        string pctLabel = $"{pct}% REMAINING";
-        int pctW = CardCanvas.MeasureText(pctLabel, scale: 1);
+        string pctLabel = string.Create(CultureInfo.InvariantCulture, $"{pct}% REMAINING");
+        int pctW = PixelCanvas.MeasureText(pctLabel, scale: 1);
         canvas.DrawText(pctLabel, rightEdge - pctW, rowY, pctCol, scale: 1);
 
         int barY = rowY + 15;
@@ -118,7 +305,7 @@ public static class AiUsageChartRenderer
         if (pct == 0)
         {
             const string hit = "LIMIT REACHED";
-            int hitW = CardCanvas.MeasureText(hit, scale: 1);
+            int hitW = PixelCanvas.MeasureText(hit, scale: 1);
             canvas.DrawText(hit, rightEdge - hitW, barY + 16, DangerText, scale: 1);
         }
     }
@@ -227,7 +414,7 @@ public static class AiUsageChartRenderer
         return crc ^ 0xFFFFFFFFU;
     }
 
-    private sealed class CardCanvas
+    private sealed class PixelCanvas
     {
         public int Width { get; }
 
@@ -235,7 +422,7 @@ public static class AiUsageChartRenderer
 
         public byte[] RgbaBytes { get; }
 
-        public CardCanvas(int width, int height)
+        public PixelCanvas(int width, int height)
         {
             Width = width;
             Height = height;
@@ -250,10 +437,73 @@ public static class AiUsageChartRenderer
             }
 
             int idx = ((y * Width) + x) * 4;
-            RgbaBytes[idx] = c.R;
-            RgbaBytes[idx + 1] = c.G;
-            RgbaBytes[idx + 2] = c.B;
-            RgbaBytes[idx + 3] = c.A;
+            if (c.A == 255)
+            {
+                RgbaBytes[idx] = c.R;
+                RgbaBytes[idx + 1] = c.G;
+                RgbaBytes[idx + 2] = c.B;
+                RgbaBytes[idx + 3] = 255;
+            }
+            else if (c.A > 0)
+            {
+                int a = c.A;
+                int invA = 255 - a;
+                RgbaBytes[idx] = (byte)(((c.R * a) + (RgbaBytes[idx] * invA)) / 255);
+                RgbaBytes[idx + 1] = (byte)(((c.G * a) + (RgbaBytes[idx + 1] * invA)) / 255);
+                RgbaBytes[idx + 2] = (byte)(((c.B * a) + (RgbaBytes[idx + 2] * invA)) / 255);
+                RgbaBytes[idx + 3] = (byte)Math.Min(255, RgbaBytes[idx + 3] + a);
+            }
+        }
+
+        public void BlendImage(byte[] rgba, int w, int h, int x, int y, double opacity = 1.0)
+        {
+            if (opacity <= 0 || w <= 0 || h <= 0)
+            {
+                return;
+            }
+
+            for (int sy = 0; sy < h; sy++)
+            {
+                int py = y + sy;
+                if ((uint)py >= (uint)Height)
+                {
+                    continue;
+                }
+
+                for (int sx = 0; sx < w; sx++)
+                {
+                    int px = x + sx;
+                    if ((uint)px >= (uint)Width)
+                    {
+                        continue;
+                    }
+
+                    int sIdx = ((sy * w) + sx) * 4;
+                    double srcA = (rgba[sIdx + 3] / 255.0) * opacity;
+                    if (srcA <= 0)
+                    {
+                        continue;
+                    }
+
+                    int dIdx = ((py * Width) + px) * 4;
+                    double invA = 1.0 - srcA;
+                    RgbaBytes[dIdx] = (byte)Math.Clamp(Math.Round((rgba[sIdx] * srcA) + (RgbaBytes[dIdx] * invA)), 0, 255);
+                    RgbaBytes[dIdx + 1] = (byte)Math.Clamp(Math.Round((rgba[sIdx + 1] * srcA) + (RgbaBytes[dIdx + 1] * invA)), 0, 255);
+                    RgbaBytes[dIdx + 2] = (byte)Math.Clamp(Math.Round((rgba[sIdx + 2] * srcA) + (RgbaBytes[dIdx + 2] * invA)), 0, 255);
+                    RgbaBytes[dIdx + 3] = (byte)Math.Clamp(Math.Round((255.0 * srcA) + (RgbaBytes[dIdx + 3] * invA)), 0, 255);
+                }
+            }
+        }
+
+        public void DrawDashedVLine(int x, int y1, int y2, Rgba color)
+        {
+            for (int y = y1; y <= y2; y++)
+            {
+                if (((y - y1) % 6) < 3)
+                {
+                    SetPixel(x, y, color);
+                }
+            }
         }
 
         public void FillRect(int x, int y, int w, int h, Rgba color)

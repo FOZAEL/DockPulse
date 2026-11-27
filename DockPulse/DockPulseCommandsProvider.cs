@@ -11,16 +11,21 @@ public partial class DockPulseCommandsProvider : CommandProvider
 {
     private readonly WirelessBatteryService _wirelessService;
     private readonly NetworkUsageService _networkService;
+    private readonly NetworkLiveService _networkLiveService;
     private readonly PrayerTimesService _prayerService;
     private readonly AiUsageService _aiUsageService;
+    private readonly AiDockSettings _aiDockSettings;
     private readonly TodayService _todayService;
     private readonly PomodoroService _pomodoroService;
 
     private readonly WirelessDevicesPage _wirelessPage;
+    private readonly NetworkDashboardPage _networkDashboardPage;
     private readonly NetworkUsagePage _networkPage;
     private readonly PrayerRegionPickerPage _prayerRegionPage;
     private readonly PrayerMethodPickerPage _prayerMethodPage;
     private readonly PrayerTimesPage _prayerPage;
+    private readonly AiDashboardPage _aiDashboardPage;
+    private readonly AiDockPickerPage _aiDockPickerPage;
     private readonly AiUsagePage _aiUsagePage;
     private readonly TodayAddItemPage _todayAddPage;
     private readonly TodaySettingsPage _todaySettingsPage;
@@ -53,19 +58,24 @@ public partial class DockPulseCommandsProvider : CommandProvider
 
         _wirelessService = new WirelessBatteryService();
         _networkService = new NetworkUsageService();
+        _networkLiveService = new NetworkLiveService();
         _prayerService = new PrayerTimesService();
         _aiUsageService = new AiUsageService();
+        _aiDockSettings = new AiDockSettings();
         _todayService = new TodayService();
         _pomodoroService = new PomodoroService();
 
         _wirelessPage = new WirelessDevicesPage(_wirelessService);
-        _networkPage = new NetworkUsagePage(_networkService);
+        _networkDashboardPage = new NetworkDashboardPage(_networkLiveService);
+        _networkPage = new NetworkUsagePage(_networkService, _networkLiveService, _networkDashboardPage);
 
         _prayerRegionPage = new PrayerRegionPickerPage(_prayerService);
         _prayerMethodPage = new PrayerMethodPickerPage(_prayerService);
         _prayerPage = new PrayerTimesPage(_prayerService, _prayerRegionPage, _prayerMethodPage);
 
-        _aiUsagePage = new AiUsagePage(_aiUsageService);
+        _aiDashboardPage = new AiDashboardPage(_aiUsageService, _aiDockSettings);
+        _aiDockPickerPage = new AiDockPickerPage(_aiUsageService, _aiDockSettings);
+        _aiUsagePage = new AiUsagePage(_aiUsageService, _aiDockSettings, _aiDashboardPage, _aiDockPickerPage);
 
         _todayAddPage = new TodayAddItemPage(_todayService);
         _todaySettingsPage = new TodaySettingsPage(_todayService);
@@ -78,7 +88,7 @@ public partial class DockPulseCommandsProvider : CommandProvider
         _wirelessDockItem = new WirelessBatteryDockBandItem(_wirelessService, _wirelessPage);
         _networkDockItem = new NetworkUsageDockBandItem(_networkService, _networkPage);
         _prayerDockItem = new PrayerTimesDockBandItem(_prayerService, _prayerPage, _prayerRegionPage, _prayerMethodPage);
-        _aiUsageDockItem = new AiUsageDockBandItem(_aiUsageService, _aiUsagePage);
+        _aiUsageDockItem = new AiUsageDockBandItem(_aiUsageService, _aiDockSettings, _aiUsagePage, _aiDockPickerPage);
         _todayDockItem = new TodayDockBandItem(_todayService, _todayPage, _todayAddPage, _todaySettingsPage);
         _pomodoroDockItem = new PomodoroDockBandItem(_pomodoroService, _pomodoroPage, _pomodoroStatsPage, _pomodoroSettingsPage);
         _pomodoroToggleDockItem = new PomodoroToggleDockItem(_pomodoroService, _pomodoroDockItem);
@@ -90,8 +100,10 @@ public partial class DockPulseCommandsProvider : CommandProvider
 
         _wirelessPage.OnManualRefresh = () => _ = _wirelessDockItem.RefreshAsync(forceUncached: true);
         _networkPage.OnManualRefresh = () => _ = _networkDockItem.RefreshAsync();
+        _networkDashboardPage.OnManualRefresh = () => _ = _networkDockItem.RefreshAsync();
         _prayerPage.OnManualRefresh = () => _prayerDockItem.Refresh();
         _aiUsagePage.OnManualRefresh = () => _aiUsageDockItem.RefreshNow();
+        _aiDashboardPage.OnManualRefresh = () => _aiUsageDockItem.RefreshNow();
 
         _topLevelCommands =
         [
@@ -194,6 +206,36 @@ public partial class DockPulseCommandsProvider : CommandProvider
             }
         }
 
+        if (_networkDashboardPage.Id == id)
+        {
+            return new CommandItem(_networkDashboardPage)
+            {
+                Title = "Network Dashboard",
+                Subtitle = "Live network speed, today's hourly usage, and monthly daily usage",
+                Icon = new IconInfo("\uE774"),
+            };
+        }
+
+        if (_aiDashboardPage.Id == id)
+        {
+            return new CommandItem(_aiDashboardPage)
+            {
+                Title = "AI Usage Dashboard",
+                Subtitle = "Compare remaining limits for Claude, Antigravity, and Codex side by side",
+                Icon = new IconInfo("\uE9E9"),
+            };
+        }
+
+        if (_aiDockPickerPage.Id == id)
+        {
+            return new CommandItem(_aiDockPickerPage)
+            {
+                Title = "Choose What the AI Usage Dock Shows",
+                Subtitle = "Pin a specific AI provider or show the tightest limit automatically",
+                Icon = new IconInfo("\uE718"),
+            };
+        }
+
         if (_prayerRegionPage.Id == id)
         {
             return new CommandItem(_prayerRegionPage)
@@ -271,8 +313,14 @@ public partial class DockPulseCommandsProvider : CommandProvider
     {
         _wirelessDockItem.Dispose();
         _networkDockItem.Dispose();
+        _networkPage.Dispose();
+        _networkDashboardPage.Dispose();
+        _networkLiveService.Dispose();
         _prayerDockItem.Dispose();
         _aiUsageDockItem.Dispose();
+        _aiUsagePage.Dispose();
+        _aiDashboardPage.Dispose();
+        _aiDockPickerPage.Dispose();
         _todayDockItem.Dispose();
         _pomodoroToggleDockItem.Dispose();
         _pomodoroDockItem.Dispose();

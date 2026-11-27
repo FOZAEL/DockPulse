@@ -10,17 +10,28 @@ using Microsoft.CommandPalette.Extensions.Toolkit;
 
 namespace DockPulse.Pages;
 
-internal sealed partial class AiUsagePage : ListPage
+internal sealed partial class AiUsagePage : ListPage, IDisposable
 {
     private readonly AiUsageService _service;
+    private readonly AiDockSettings _dockSettings;
+    private readonly AiDashboardPage _dashboardPage;
+    private readonly AiDockPickerPage _pickerPage;
     private readonly object _itemsLock = new();
+    private AiUsageSnapshot _lastSnapshot;
     private IListItem[] _cachedItems;
 
     public Action? OnManualRefresh { get; set; }
 
-    public AiUsagePage(AiUsageService service)
+    public AiUsagePage(
+        AiUsageService service,
+        AiDockSettings dockSettings,
+        AiDashboardPage dashboardPage,
+        AiDockPickerPage pickerPage)
     {
         _service = service;
+        _dockSettings = dockSettings;
+        _dashboardPage = dashboardPage;
+        _pickerPage = pickerPage;
 
         Id = "com.dockpulse.page.aiusage";
         Name = "AI Usage";
@@ -29,8 +40,11 @@ internal sealed partial class AiUsagePage : ListPage
         PlaceholderText = "Filter AI providers...";
         ShowDetails = true;
 
-        var initial = _service.GetUsageSnapshot();
-        _cachedItems = BuildItems(initial);
+        _lastSnapshot = _service.GetUsageSnapshot();
+        _cachedItems = BuildItems(_lastSnapshot);
+
+        _dockSettings.Changed += RebuildFromLastSnapshot;
+        _dockSettings.CompareWindowChanged += RebuildFromLastSnapshot;
     }
 
     public void UpdateSnapshot(AiUsageSnapshot snapshot)
@@ -38,6 +52,7 @@ internal sealed partial class AiUsagePage : ListPage
         var built = BuildItems(snapshot);
         lock (_itemsLock)
         {
+            _lastSnapshot = snapshot;
             _cachedItems = built;
         }
 
@@ -52,10 +67,84 @@ internal sealed partial class AiUsagePage : ListPage
         }
     }
 
+    private void RebuildFromLastSnapshot()
+    {
+        AiUsageSnapshot snapshot;
+        lock (_itemsLock)
+        {
+            snapshot = _lastSnapshot;
+        }
+
+        var built = BuildItems(snapshot);
+        lock (_itemsLock)
+        {
+            _cachedItems = built;
+        }
+
+        RaiseItemsChanged(built.Length);
+    }
+
     private IListItem[] BuildItems(AiUsageSnapshot snapshot)
     {
         var nowUtc = DateTimeOffset.UtcNow;
-        var items = new List<IListItem>(snapshot.Providers.Count + 2);
+        bool weekly = _dockSettings.ShowWeeklyCompare;
+        string winLabel = weekly ? "Weekly" : "5h";
+        string dockMode = _dockSettings.DockMode;
+        var dock = AiDockSettings.ResolveDockDisplay(snapshot, dockMode, nowUtc);
+
+        string compareChartUri = AiUsageChartRenderer.RenderCompareCardDataUri(
+            snapshot,
+            weekly,
+            nowUtc,
+            width: AiUsageChartRenderer.DefaultWidth,
+            height: AiUsageChartRenderer.DefaultHeight);
+
+        string dockDetailBody = string.Equals(dock.Mode, AiDockSettings.AutoMode, StringComparison.OrdinalIgnoreCase)
+            ? $"**Mode:** {AiDockSettings.AutoLabel}  \n" +
+              $"**Showing:** {dock.Title}  •  {dock.Subtitle}\n\n" +
+              "Automatically tracks whichever signed-in provider and window (5-hour or weekly) is closest to its limit.\n\n" +
+              "Press **Enter** to pin a specific provider to the Dock."
+            : $"**Mode:** {dock.ChoiceLabel} (pinned)  \n" +
+              $"**Showing:** {dock.Title}  •  {dock.Subtitle}\n\n" +
+              $"Always displays **{dock.ChoiceLabel}** on the Dock band using its tightest window (5-hour or weekly).\n\n" +
+              "Press **Enter** to choose another provider or switch back to auto.";
+
+        var items = new List<IListItem>(snapshot.Providers.Count + 5)
+        {
+            new ListItem(_dashboardPage)
+            {
+                Icon = new IconInfo("\uE9E9"),
+                Title = "Compare Providers",
+                Subtitle = $"{winLabel} remaining for Claude, Antigravity and Codex side by side",
+                Tags = [DockPulseHelpers.CreateTag("Live", TagTone.Accent)],
+                Details = new Details
+                {
+                    Title = "Compare Providers",
+                    Body = $"![Compare Providers]({compareChartUri})\n\n_Redraws when new usage arrives_",
+                },
+                MoreCommands =
+                [
+                    new CommandContextItem(new ActionCommand("Refresh AI Usage", TriggerRefresh, new IconInfo("\uE72C"))),
+                ],
+            },
+            new ListItem(_pickerPage)
+            {
+                Icon = new IconInfo("\uE718"),
+                Title = $"Dock Shows: {dock.ChoiceLabel}",
+                Subtitle = "Choose which AI provider appears on the Dock",
+                Tags = [DockPulseHelpers.CreateTag("Dock", TagTone.Accent)],
+                Details = new Details
+                {
+                    Title = "Dock Display",
+                    Body = dockDetailBody,
+                },
+                MoreCommands =
+                [
+                    new CommandContextItem(new ActionCommand("Refresh AI Usage", TriggerRefresh, new IconInfo("\uE72C"))),
+                ],
+            },
+        };
+
         AiProviderUsage? tightestProvider = null;
         string? tightestChartUri = null;
         string? firstChartUri = null;
@@ -71,6 +160,22 @@ internal sealed partial class AiUsagePage : ListPage
                 tightestChartUri = chartUri;
             }
 
+            bool isPinned = string.Equals(dockMode, provider.Id, StringComparison.OrdinalIgnoreCase);
+            string targetId = provider.Id;
+            string targetName = provider.Name;
+            var showOnDockItem = new CommandContextItem(new ActionCommand(
+                isPinned ? "Showing on Dock" : "Show on Dock",
+                () =>
+                {
+                    if (!isPinned)
+                    {
+                        _dockSettings.SetDockMode(targetId);
+                    }
+
+                    DockPulseHelpers.ShowInlineToast($"Dock now shows {targetName}");
+                },
+                new IconInfo("\uE718")));
+
             if (!provider.HasData)
             {
                 items.Add(new ListItem(new ActionCommand(
@@ -78,7 +183,7 @@ internal sealed partial class AiUsagePage : ListPage
                     TriggerRefresh,
                     new IconInfo("\uE72C")))
                 {
-                    Icon = new IconInfo("\uE946"),
+                    Icon = AiLogos.GetIcon(provider.Id),
                     Title = provider.Name,
                     Subtitle = provider.UnavailableSubtitle,
                     Tags = [DockPulseHelpers.CreateTag("No data", TagTone.Warn)],
@@ -93,6 +198,7 @@ internal sealed partial class AiUsagePage : ListPage
                     },
                     MoreCommands =
                     [
+                        showOnDockItem,
                         new CommandContextItem(new ActionCommand("Refresh All AI Usage", TriggerRefresh, new IconInfo("\uE72C"))),
                         new CommandContextItem(new OpenUriCommand($"Open {provider.Name} Settings", provider.Url, new IconInfo("\uE774"))),
                     ],
@@ -127,14 +233,14 @@ internal sealed partial class AiUsagePage : ListPage
             if (provider.FiveHour is not null)
             {
                 tags.Add(DockPulseHelpers.CreateTag(
-                    $"5h {provider.FiveHour.RemainingPercent}%",
+                    string.Create(CultureInfo.InvariantCulture, $"5h {provider.FiveHour.RemainingPercent}%"),
                     ToneForPercent(provider.FiveHour.RemainingPercent)));
             }
 
             if (provider.Weekly is not null)
             {
                 tags.Add(DockPulseHelpers.CreateTag(
-                    $"Weekly {provider.Weekly.RemainingPercent}%",
+                    string.Create(CultureInfo.InvariantCulture, $"Weekly {provider.Weekly.RemainingPercent}%"),
                     ToneForPercent(provider.Weekly.RemainingPercent)));
             }
 
@@ -170,7 +276,7 @@ internal sealed partial class AiUsagePage : ListPage
                 TriggerRefresh,
                 new IconInfo("\uE72C")))
             {
-                Icon = new IconInfo(limitHit ? "\uE7BA" : "\uE99A"),
+                Icon = AiLogos.GetIcon(provider.Id),
                 Title = provider.Name,
                 Subtitle = string.Join("  •  ", subtitleParts),
                 Tags = [.. tags],
@@ -181,11 +287,34 @@ internal sealed partial class AiUsagePage : ListPage
                 },
                 MoreCommands =
                 [
+                    showOnDockItem,
                     new CommandContextItem(new ActionCommand("Refresh All AI Usage", TriggerRefresh, new IconInfo("\uE72C"))),
                     new CommandContextItem(new OpenUriCommand($"Open {provider.Name} Usage", provider.Url, new IconInfo("\uE774"))),
                 ],
             });
         }
+
+        // Cursor is link-only: DockPulse never reads any local Cursor files or credentials
+        items.Add(new ListItem(new OpenUriCommand("Open Cursor Usage", AiDockSettings.CursorUrl, new IconInfo("\uE774")))
+        {
+            Icon = AiLogos.GetIcon("cursor"),
+            Title = "Cursor",
+            Subtitle = "Usage is shown on cursor.com  •  press Enter to open",
+            Tags = [DockPulseHelpers.CreateTag("Link", TagTone.Default)],
+            Details = new Details
+            {
+                Title = "Cursor",
+                Body =
+                    "**Source:** cursor.com dashboard\n\n" +
+                    "Cursor doesn't offer a local way to read plan usage, so DockPulse doesn't show numbers for it and never reads your Cursor sign-in.\n\n" +
+                    "Press **Enter** to open your usage page in the browser.",
+            },
+            MoreCommands =
+            [
+                new CommandContextItem(new OpenUriCommand("Open Cursor Usage", AiDockSettings.CursorUrl, new IconInfo("\uE774"))),
+                new CommandContextItem(new ActionCommand("Refresh All AI Usage", TriggerRefresh, new IconInfo("\uE72C"))),
+            ],
+        });
 
         items.Add(new ListItem(new CopyTextCommand(AiUsageService.GetClaudeSetupClipboardText())
         {
@@ -223,7 +352,7 @@ internal sealed partial class AiUsagePage : ListPage
         {
             Icon = new IconInfo("\uE72C"),
             Title = "Refresh AI Usage",
-            Subtitle = $"Last checked at {snapshot.CheckedAt:HH:mm:ss}",
+            Subtitle = $"Last checked at {snapshot.CheckedAt.ToString("HH:mm:ss", CultureInfo.InvariantCulture)}",
             Details = new Details
             {
                 Title = fallbackTitle,
@@ -256,5 +385,11 @@ internal sealed partial class AiUsagePage : ListPage
     {
         var latest = _service.GetUsageSnapshot();
         UpdateSnapshot(latest);
+    }
+
+    public void Dispose()
+    {
+        _dockSettings.Changed -= RebuildFromLastSnapshot;
+        _dockSettings.CompareWindowChanged -= RebuildFromLastSnapshot;
     }
 }
