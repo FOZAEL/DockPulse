@@ -73,6 +73,7 @@
     font-style: normal; font-weight: normal; line-height: 1;
     display: inline-flex; align-items: center; justify-content: center;
   }
+  .ic svg { width: 1em; height: 1em; display: block; flex: none; }
   button { font: inherit; color: inherit; }
 
   /* ---------- preview toolbar (not part of DockPulse) ---------- */
@@ -122,12 +123,14 @@
   .band:hover { background: var(--row-hover); }
   .band:active, .band.open { background: var(--row-sel); }
   .band .ic { font-size: 16px; width: 20px; }
+  .band .ic svg { width: 16px; height: 16px; }
   .band .t { font-size: 12px; font-weight: 600; white-space: nowrap; }
   .band .s { font-size: 11px; color: var(--text-2); white-space: nowrap; }
   .band-group { display: inline-flex; align-items: stretch; gap: 1px; border-radius: 6px; }
   .band-group .band { border-radius: 6px; }
   .band.band-icon { padding: 4px 8px; gap: 0; }
   .band.band-icon .ic { font-size: 13px; width: 16px; }
+  .band.band-icon .ic svg { width: 13px; height: 13px; }
 
   /* ---------- command palette window ---------- */
   .palette {
@@ -145,6 +148,7 @@
     width: 32px; height: 32px; border: 0; border-radius: 4px; background: transparent;
     font-size: 14px; color: var(--text-2); flex: none;
   }
+  .pal-top .lead svg { width: 16px; height: 16px; }
   .pal-top button.lead { cursor: pointer; }
   .pal-top button.lead:hover { background: var(--row-hover); color: var(--text); }
   .pal-top input {
@@ -167,14 +171,17 @@
     margin-top: -8px; border-radius: 2px; background: var(--accent);
   }
   .row > .ic { font-size: 18px; width: 24px; flex: none; color: var(--text); }
+  .row > .ic svg { width: 18px; height: 18px; }
   .row .txt { flex: 1; min-width: 0; }
   .row .ti { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .row .su { font-size: 12px; color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .tags { display: flex; gap: 4px; flex: none; flex-wrap: nowrap; }
   .tag {
+    display: inline-flex; align-items: center; gap: 4px;
     font-size: 11.5px; padding: 1px 7px; border-radius: 4px; white-space: nowrap;
     background: var(--tag-bg); border: 1px solid var(--tag-stroke); color: var(--text-2);
   }
+  .tag .ic { font-size: 11px; }
   .tag.ok { background: rgba(16, 185, 129, .14); border-color: rgba(16, 185, 129, .38); color: #10b981; }
   .tag.accent { background: rgba(56, 189, 248, .14); border-color: rgba(56, 189, 248, .38); color: var(--accent); }
   .tag.warn { background: rgba(245, 158, 11, .15); border-color: rgba(245, 158, 11, .4); color: #d97706; }
@@ -200,6 +207,8 @@
 
   .content { flex: 1; overflow-y: auto; padding: 16px 20px; display: flex; flex-direction: column; gap: 10px; }
   .chart { display: block; width: 100%; height: auto; }
+  .dash-chart { display: block; width: 100%; max-width: 480px; height: auto; margin: 0 auto; }
+  .dash-md { max-width: 480px; width: 100%; margin: 0 auto; }
   .pomo-card { display: block; width: 100%; max-width: 480px; height: auto; margin: 0 auto; border-radius: 12px; }
   .prayer-card-wrap { padding: 6px 8px 4px; }
   .prayer-card { display: block; width: 100%; height: auto; border-radius: 12px; cursor: pointer; }
@@ -248,6 +257,7 @@
     border-top: 1px solid var(--stroke); font-size: 12.5px; color: var(--text-2); min-height: 44px;
   }
   .bar-left { display: flex; align-items: center; gap: 8px; min-width: 0; flex: 1; }
+  .bar-left .ic svg { width: 14px; height: 14px; }
   .bar-left span:last-child { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .bar-right { display: flex; align-items: center; gap: 4px; flex: none; }
   .bar-btn {
@@ -275,6 +285,7 @@
   }
   .menu button:hover, .menu button.sel { background: var(--row-sel); }
   .menu .ic { width: 16px; font-size: 14px; color: var(--text-2); }
+  .menu .ic svg { width: 14px; height: 14px; }
   .toast {
     position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); z-index: 30;
     background: var(--menu); color: var(--text); border: 1px solid var(--stroke-strong);
@@ -314,6 +325,9 @@
     <label>Scenario
       <select id="scenario">
         <option value="normal">Normal</option>
+        <option value="net_live">Network: live dashboard</option>
+        <option value="ai_compare">AI Usage: compare dashboard</option>
+        <option value="ai_dock_antigravity">AI Usage: Dock shows Antigravity</option>
         <option value="ai_limit">AI Usage: Claude 0% (limit reached)</option>
         <option value="ai_nosignin">AI Usage: Codex no sessions, agy not installed</option>
         <option value="bt_fallback">Bluetooth: pinned device disconnected</option>
@@ -369,6 +383,7 @@
    Formatting helpers: ports of the C# formatters, so texts match
    ===================================================================== */
 const KB = 1024, MB = KB * 1024, GB = MB * 1024;
+const KBPS = 1000, MBPS = KBPS * 1000, GBPS = MBPS * 1000;
 const pad2 = n => String(n).padStart(2, "0");
 const hhmm = mins => pad2(Math.floor(((mins % 1440) + 1440) % 1440 / 60)) + ":" + pad2(((mins % 60) + 60) % 60);
 const deg = x => String(Number(x.toFixed(1)));               // C# "0.#"
@@ -401,6 +416,31 @@ function niceCeiling(max) {
   const nice = n <= 1 ? 1 : n <= 1.5 ? 1.5 : n <= 2 ? 2 : n <= 2.5 ? 2.5 : n <= 4 ? 4 : n <= 5 ? 5 : n <= 8 ? 8 : 10;
   return Math.ceil(nice * mag * unit);
 }
+function formatBps(bps) {
+  if (!bps || bps <= 0) return "0 bps";
+  if (bps >= GBPS) return (bps / GBPS).toFixed(2) + " Gbps";
+  if (bps >= MBPS || Math.round(bps / KBPS) >= 1000) return (bps / MBPS).toFixed(1) + " Mbps";
+  if (bps >= KBPS) return Math.round(bps / KBPS) + " Kbps";
+  return Math.round(bps) + " bps";
+}
+function formatShortBpsAxis(bps) {
+  if (!bps || bps <= 0) return "0";
+  const units = ["bps", "Kbps", "Mbps", "Gbps"];
+  let v = bps, i = 0;
+  while (v >= 1000 && i < units.length - 1) { v /= 1000; i++; }
+  const d = v >= 100 ? 0 : (Math.abs(v - Math.round(v)) < 0.05 ? 0 : 1);
+  return v.toFixed(d) + " " + units[i];
+}
+function niceBpsCeiling(max) {
+  if (!max || max <= 0) return 10 * MBPS;
+  let unit = 1;
+  if (max >= GBPS) unit = GBPS; else if (max >= MBPS) unit = MBPS; else if (max >= KBPS) unit = KBPS;
+  const inUnits = max / unit;
+  const mag = Math.pow(10, Math.floor(Math.log10(Math.max(inUnits, 0.1))));
+  const n = inUnits / mag;
+  const nice = n <= 1 ? 1 : n <= 1.5 ? 1.5 : n <= 2 ? 2 : n <= 2.5 ? 2.5 : n <= 4 ? 4 : n <= 5 ? 5 : n <= 8 ? 8 : 10;
+  return Math.ceil(nice * mag * unit);
+}
 function formatPeakHour(hourly) {
   let best = -1, bestTotal = 0;
   hourly.forEach((b, i) => { const t = b.rx + b.tx; if (t > bestTotal) { bestTotal = t; best = i; } });
@@ -423,6 +463,67 @@ const deviceGlyph = kind => ({ Mouse: "", Keyboard: "", Audio: "", Cont
 const prayerGlyph = name => ["Dhuhr", "Asr", "Sunrise", "Sunset"].includes(name) ? "" : "";
 const truncate = (s, max) => s.length <= max ? s : s.slice(0, max - 1) + "…";
 const truncateChartTitle = (s, max) => s.length <= max ? s : s.slice(0, max).trimEnd();
+
+/* =====================================================================
+   AI provider logos (inline SVG mock; the real app will use official
+   logo PNG files from the providers, packaged in Assets)
+   ===================================================================== */
+const AI_LOGOS = {
+  // Anthropic Claude orange (#D97757) radial starburst
+  claude: '<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><g stroke="#D97757" stroke-width="2.1" stroke-linecap="round"><line x1="12" y1="12" x2="22" y2="13.8"/><line x1="12" y1="12" x2="18.4" y2="17.4"/><line x1="12" y1="12" x2="15.5" y2="21.6"/><line x1="12" y1="12" x2="10.5" y2="20.3"/><line x1="12" y1="12" x2="5.4" y2="19.8"/><line x1="12" y1="12" x2="4.1" y2="14.9"/><line x1="12" y1="12" x2="2" y2="10.2"/><line x1="12" y1="12" x2="5.6" y2="6.6"/><line x1="12" y1="12" x2="8.5" y2="2.4"/><line x1="12" y1="12" x2="13.5" y2="3.7"/><line x1="12" y1="12" x2="18.6" y2="4.2"/><line x1="12" y1="12" x2="19.9" y2="9.1"/></g><circle cx="12" cy="12" r="3.2" fill="#D97757"/></svg>',
+  // Gemini four-point sparkle with blue-to-purple gradient (placeholder for Antigravity)
+  antigravity: '<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="ag-grad" x1="2" y1="2" x2="22" y2="22" gradientUnits="userSpaceOnUse"><stop offset="0%" stop-color="#4285F4"/><stop offset="55%" stop-color="#7B6EF6"/><stop offset="100%" stop-color="#A855F7"/></linearGradient></defs><path fill="url(#ag-grad)" d="M12 1.5C12.9 7.8 16.2 11.1 22.5 12C16.2 12.9 12.9 16.2 12 22.5C11.1 16.2 7.8 12.9 1.5 12C7.8 11.1 11.1 7.8 12 1.5Z"/></svg>',
+  // OpenAI monochrome hexagonal blossom (follows currentColor for light/dark themes)
+  codex: '<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><g fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round"><path d="M13.18 9.95H9.9A3.45 3.45 0 1 1 13.09 5.19"/><path d="M13.18 9.95H9.9A3.45 3.45 0 1 1 13.09 5.19" transform="rotate(60 12 12)"/><path d="M13.18 9.95H9.9A3.45 3.45 0 1 1 13.09 5.19" transform="rotate(120 12 12)"/><path d="M13.18 9.95H9.9A3.45 3.45 0 1 1 13.09 5.19" transform="rotate(180 12 12)"/><path d="M13.18 9.95H9.9A3.45 3.45 0 1 1 13.09 5.19" transform="rotate(240 12 12)"/><path d="M13.18 9.95H9.9A3.45 3.45 0 1 1 13.09 5.19" transform="rotate(300 12 12)"/></g></svg>',
+  // Cursor monochrome isometric cube/hexagon mark (follows currentColor for light/dark themes)
+  cursor: '<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path fill="currentColor" fill-opacity="0.22" d="M12 1.8L20.8 6.9V17.1L12 22.2L3.2 17.1V6.9Z"/><path fill="currentColor" fill-opacity="0.4" d="M3.2 6.9L12 12V22.2L3.2 17.1Z"/><path fill="currentColor" fill-opacity="0.7" d="M20.8 6.9L12 22.2V12Z"/><path fill="currentColor" d="M3.2 6.9H20.8L12 12Z"/><path fill="none" stroke="currentColor" stroke-width="1" stroke-linejoin="round" stroke-opacity="0.55" d="M12 1.8L20.8 6.9V17.1L12 22.2L3.2 17.1V6.9Z"/></svg>',
+};
+
+const logo = id => ({ logo: id });
+let logoUid = 0;
+function iconHtml(icon) {
+  if (!icon) return "";
+  if (typeof icon === "object" && icon.logo) {
+    const raw = AI_LOGOS[icon.logo];
+    if (!raw) return "";
+    const uid = ++logoUid;
+    return raw
+      .replace(/<svg\b/, '<svg aria-hidden="true"')
+      .replace(/ag-grad/g, "ag-grad-" + uid);
+  }
+  return esc(String(icon));
+}
+
+const aiLogoCache = new Map();
+function getAiLogoImage(id, color) {
+  const raw = AI_LOGOS[id];
+  if (!raw) return null;
+  const key = id + "|" + color;
+  let entry = aiLogoCache.get(key);
+  if (entry) return entry;
+  const svg = raw
+    .replace(/<svg\b/, '<svg width="64" height="64"')
+    .replace(/currentColor/g, color);
+  const img = new Image();
+  entry = { img, ready: false, waiters: [] };
+  aiLogoCache.set(key, entry);
+  img.onload = () => {
+    entry.ready = true;
+    const fns = entry.waiters.splice(0);
+    for (const fn of fns) fn();
+  };
+  img.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svg);
+  return entry;
+}
+function drawAiLogo(ctx, id, x, y, size, color, onLoad) {
+  const entry = getAiLogoImage(id, color);
+  if (!entry) return;
+  if (entry.ready && entry.img.naturalWidth > 0) {
+    ctx.drawImage(entry.img, x, y, size, size);
+  } else if (onLoad) {
+    entry.waiters.push(onLoad);
+  }
+}
 
 /* =====================================================================
    MOCK DATA: edit freely. Nothing here is real.
@@ -452,16 +553,19 @@ const AI_SCENARIOS = {
     { id: "claude", name: "Claude", plan: "Claude Code CLI • /usage", signedIn: true, shortPct: 38, shortReset: "1h 12m", weekPct: 72, weekReset: "3d 5h", age: "updated 3 min ago", url: "https://claude.ai/settings/usage" },
     { id: "antigravity", name: "Antigravity", plan: "Antigravity CLI • Gemini Models", signedIn: true, shortPct: 80, shortReset: "1h 59m", weekPct: 94, weekReset: "6d 20h", age: "updated 2 min ago", url: "https://antigravity.google" },
     { id: "codex", name: "Codex", plan: "Codex CLI • Local sessions", signedIn: true, shortPct: 54, shortReset: "2h 05m", weekPct: 88, weekReset: "5d 2h", age: "updated 3 min ago", url: "https://chatgpt.com/codex/settings/usage" },
+    { id: "cursor", name: "Cursor", linkOnly: true, plan: "cursor.com dashboard", url: "https://cursor.com/dashboard?tab=usage" },
   ],
   ai_limit: [
     { id: "claude", name: "Claude", plan: "Claude Code CLI • /usage", signedIn: true, shortPct: 0, shortReset: "42m", weekPct: 64, weekReset: "3d 5h", age: "updated 1 min ago", url: "https://claude.ai/settings/usage" },
     { id: "antigravity", name: "Antigravity", plan: "Antigravity CLI • Gemini Models", signedIn: true, shortPct: 71, shortReset: "3h 10m", weekPct: 90, weekReset: "6d 20h", age: "updated 1 min ago", url: "https://antigravity.google" },
     { id: "codex", name: "Codex", plan: "Codex CLI • Local sessions", signedIn: true, shortPct: 54, shortReset: "2h 05m", weekPct: 88, weekReset: "5d 2h", age: "updated 4 min ago", url: "https://chatgpt.com/codex/settings/usage" },
+    { id: "cursor", name: "Cursor", linkOnly: true, plan: "cursor.com dashboard", url: "https://cursor.com/dashboard?tab=usage" },
   ],
   ai_nosignin: [
     { id: "claude", name: "Claude", plan: "Claude Code CLI • /usage", signedIn: true, shortPct: 62, shortReset: "2h 45m", weekPct: 78, weekReset: "3d 5h", age: "updated 3 min ago", url: "https://claude.ai/settings/usage" },
     { id: "antigravity", name: "Antigravity", plan: "Antigravity CLI • /usage", signedIn: false, unavailableSub: "agy CLI not found", unavailableCard: "AGY CLI NOT FOUND", url: "https://antigravity.google" },
     { id: "codex", name: "Codex", plan: "Codex CLI • Local sessions", signedIn: false, unavailableSub: "No local Codex sessions found", unavailableCard: "NO LOCAL CODEX SESSIONS", url: "https://chatgpt.com/codex/settings/usage" },
+    { id: "cursor", name: "Cursor", linkOnly: true, plan: "cursor.com dashboard", url: "https://cursor.com/dashboard?tab=usage" },
   ],
 };
 
@@ -521,6 +625,30 @@ function seeded(seed) {
   };
 }
 
+function initNetLive(zero) {
+  const rnd = seeded(42);
+  let down = 14.5 * MBPS, up = 1.4 * MBPS, burstLeft = 0;
+  const next = () => {
+    if (zero) return { down: 0, up: 0 };
+    if (burstLeft > 0) {
+      burstLeft--;
+      down = Math.min(46 * MBPS, Math.max(20 * MBPS, down + (rnd() - 0.35) * 8 * MBPS));
+    } else if (rnd() < 0.08) {
+      burstLeft = 2 + Math.floor(rnd() * 3);
+      down = Math.min(44 * MBPS, down + (12 + rnd() * 14) * MBPS);
+    } else {
+      down = down + (12 * MBPS - down) * 0.14 + (rnd() - 0.5) * 9 * MBPS;
+      down = Math.min(40 * MBPS, Math.max(2 * MBPS, down));
+    }
+    up = up + (1.3 * MBPS - up) * 0.16 + (rnd() - 0.5) * 1.4 * MBPS;
+    up = Math.min(4 * MBPS, Math.max(0.2 * MBPS, up));
+    return { down: Math.round(down), up: Math.round(up) };
+  };
+  const samples = [];
+  for (let i = 0; i < 30; i++) samples.push(next());
+  return { samples, next };
+}
+
 /* =====================================================================
    App state
    ===================================================================== */
@@ -528,6 +656,11 @@ const state = {
   theme: "auto",
   scenario: "normal",
   clock: T("14:11"),
+  netRange: "live",
+  netLive: initNetLive(false),
+  aiWindow: "5h",
+  aiDock: "auto", // "auto" | "claude" | "antigravity" | "codex" (saved to aiusage.cfg, e.g. dock=claude)
+  ai: { providers: null, refreshOffsetSec: 0, rnd: seeded(99) },
   prayer: { regionId: "kabul", methodId: "karachi", asr: "Hanafi", notifications: true },
   wireless: { pinnedId: "mouse-pro-x2", pinnedName: "PRO X2 SUPERSTRIKE" },
   workFolder: { path: "C:\\Dev\\DockPulse" },
@@ -713,11 +846,60 @@ function resolveWireless() {
 
 const pctTone = pct => (pct === 0 ? "danger" : pct <= 25 ? "warn" : "");
 
+function netLiveStats() {
+  const samples = state.netLive.samples;
+  const cur = samples[samples.length - 1] || { down: 0, up: 0 };
+  let peakDown = 0, peakUp = 0, sumDown = 0, sumUp = 0;
+  for (const s of samples) {
+    if (s.down > peakDown) peakDown = s.down;
+    if (s.up > peakUp) peakUp = s.up;
+    sumDown += s.down;
+    sumUp += s.up;
+  }
+  const n = Math.max(1, samples.length);
+  return {
+    samples, cur, peakDown, peakUp,
+    avgDown: Math.round(sumDown / n),
+    avgUp: Math.round(sumUp / n),
+    noTraffic: state.scenario === "notraffic" || (peakDown === 0 && peakUp === 0),
+  };
+}
+function pushNetLiveSample() {
+  const s = state.netLive.next();
+  state.netLive.samples.push(s);
+  if (state.netLive.samples.length > 30) state.netLive.samples.shift();
+}
+function netLiveDetailsBody(live) {
+  return `![Live Speed](chart:live)\n\n**Download:** ${formatBps(live.cur.down)}  •  **Upload:** ${formatBps(live.cur.up)}  \n**Peak (60 s):** ↓ ${formatBps(live.peakDown)}  •  ↑ ${formatBps(live.peakUp)}  \n_Sampled every 2 s while this page is open_`;
+}
+function netLiveDashMd(live) {
+  return `**Current:** ↓ ${formatBps(live.cur.down)}  •  ↑ ${formatBps(live.cur.up)}  \n**Peak (60 s):** ↓ ${formatBps(live.peakDown)}  •  ↑ ${formatBps(live.peakUp)}  \n**Average (60 s):** ↓ ${formatBps(live.avgDown)}  •  ↑ ${formatBps(live.avgUp)}  \n_Sampled every 2 s while this page is open_`;
+}
+
+function resetAiState() {
+  const base = AI_SCENARIOS[state.scenario] || AI_SCENARIOS.normal;
+  state.ai.providers = base.map(p => ({ ...p }));
+  state.ai.refreshOffsetSec = 0;
+  state.ai.rnd = seeded(99);
+}
+function refreshAiUsage() {
+  if (!state.ai.providers) resetAiState();
+  for (const p of state.ai.providers) {
+    if (p.linkOnly || !p.signedIn) continue;
+    p.shortPct = Math.max(0, p.shortPct - Math.floor(state.ai.rnd() * 4));
+    p.weekPct = Math.max(0, p.weekPct - Math.floor(state.ai.rnd() * 4));
+    p.age = "updated just now";
+  }
+  state.ai.refreshOffsetSec += 4 + Math.floor(state.ai.rnd() * 9);
+  toast("Refreshing AI usage...");
+}
+
 function buildAiUsage() {
-  const providers = AI_SCENARIOS[state.scenario] || AI_SCENARIOS.normal;
+  if (!state.ai.providers) resetAiState();
+  const providers = state.ai.providers;
   let tightest = null;
   for (const p of providers) {
-    if (!p.signedIn) continue;
+    if (p.linkOnly || !p.signedIn) continue;
     for (const w of [
       { provider: p, win: "5h", pct: p.shortPct, reset: p.shortReset },
       { provider: p, win: "Wk", pct: p.weekPct, reset: p.weekReset },
@@ -725,11 +907,48 @@ function buildAiUsage() {
       if (!tightest || w.pct < tightest.pct) tightest = w;
     }
   }
-  const now = nowDate();
+  const now = new Date(nowDate().getTime() + state.ai.refreshOffsetSec * 1000);
   return {
     providers,
     tightest,
     updatedAt: `${pad2(now.getHours())}:${pad2(now.getMinutes())}:${pad2(now.getSeconds())}`,
+  };
+}
+
+const AI_DOCK_AUTO_LABEL = "Tightest limit (auto)";
+function resolveAiDock(ai) {
+  const mode = state.aiDock || "auto";
+  if (mode === "auto") {
+    const band = !ai.tightest
+      ? { icon: "\uE99A", title: "AI Usage", subtitle: "No data" }
+      : {
+          icon: logo(ai.tightest.provider.id),
+          title: `${ai.tightest.provider.name} ${ai.tightest.pct}%`,
+          subtitle: `${ai.tightest.win} • resets ${ai.tightest.reset}`,
+        };
+    return { mode: "auto", choiceLabel: AI_DOCK_AUTO_LABEL, provider: ai.tightest ? ai.tightest.provider : null, band };
+  }
+  const p = ai.providers.find(x => x.id === mode && !x.linkOnly);
+  if (!p) {
+    state.aiDock = "auto";
+    return resolveAiDock(ai);
+  }
+  if (!p.signedIn) {
+    return {
+      mode: p.id,
+      choiceLabel: p.name,
+      provider: p,
+      band: { icon: logo(p.id), title: p.name, subtitle: "No data" },
+    };
+  }
+  const w = p.weekPct < p.shortPct
+    ? { win: "Wk", pct: p.weekPct, reset: p.weekReset }
+    : { win: "5h", pct: p.shortPct, reset: p.shortReset };
+  return {
+    mode: p.id,
+    choiceLabel: p.name,
+    provider: p,
+    band: { icon: logo(p.id), title: `${p.name} ${w.pct}%`, subtitle: `${w.win} • resets ${w.reset}` },
   };
 }
 
@@ -915,13 +1134,19 @@ const PAGES = {
 
   network() {
     const s = buildNetwork();
+    const live = netLiveStats();
     const peakHour = formatPeakHour(s.hourly), peakDay = formatPeakDay(s.daily, s.monthAbbr);
     const avg = Math.floor(s.totalMonth / Math.max(1, s.curDay));
     // Details charts are rendered with isDarkTheme: true in NetworkUsagePage.cs, in both themes
     const small = { dark: true, w: 320, h: 185 };
     const charts = {
+      live: { kind: "netLive", ...small },
       today: { title: "Today Hourly", subtitle: `SINCE 00:00  |  PEAK: ${peakHour.toUpperCase()}`, buckets: s.hourly, active: s.curHour, ...small },
       month: { title: `${s.monthLabel} Daily`, subtitle: `PEAK: ${peakDay.toUpperCase()}  |  AVG: ${formatBytes(avg)}/DAY`, buckets: s.daily, active: s.curDay - 1, ...small },
+    };
+    const liveDetails = {
+      title: "Live Speed",
+      body: netLiveDetailsBody(live),
     };
     const todayDetails = {
       title: "Today (Hourly Usage)",
@@ -936,6 +1161,19 @@ const PAGES = {
       { icon: "", ...refresh("Refresh Now") },
     ];
     const items = [
+      {
+        liveRow: "net",
+        icon: "\uE9D9",
+        title: `Live Speed: ↓ ${formatBps(live.cur.down)} • ↑ ${formatBps(live.cur.up)}`,
+        subtitle: "Last 60 seconds  •  updates every 2 s",
+        tags: [{ text: "Live", tone: "accent" }],
+        details: liveDetails,
+        cmd: { name: "Network Dashboard", ...go("networkDashboard") },
+        more: [
+          ...rowMore,
+          openDataSettings,
+        ],
+      },
       { icon: "", title: `Today (since 00:00): ${formatBytes(s.totalToday)}`, subtitle: `↓ ${formatBytes(s.rxToday)}   •   ↑ ${formatBytes(s.txToday)}`, tags: ["Today"], details: todayDetails, cmd: openDataSettings, more: rowMore },
       { icon: "", title: `This Month (${s.monthLabel}): ${formatBytes(s.totalMonth)}`, subtitle: `↓ ${formatBytes(s.rxMonth)}   •   ↑ ${formatBytes(s.txMonth)}`, tags: ["Month"], details: monthDetails, cmd: openDataSettings, more: rowMore },
     ];
@@ -958,6 +1196,77 @@ const PAGES = {
     items.push({ icon: "", title: "Refresh Network Usage", subtitle: `Last updated at ${s.updatedAt}`, details: todayDetails, cmd: refresh("Refresh Now") });
     items.push({ icon: "", title: "Open Windows Data Usage Settings", subtitle: "View per-app usage breakdown in Windows Settings", details: monthDetails, cmd: uri("Open Windows Data Usage", "ms-settings:datausage") });
     return { kind: "list", name: "Network Usage", title: "Network Data Usage (Today & This Month)", icon: "", placeholder: "Filter network adapters...", showDetails: true, charts, items };
+  },
+
+  networkDashboard() {
+    const s = buildNetwork();
+    const live = netLiveStats();
+    const peakHour = formatPeakHour(s.hourly), peakDay = formatPeakDay(s.daily, s.monthAbbr);
+    const avg = Math.floor(s.totalMonth / Math.max(1, s.curDay));
+    const range = state.netRange || "live";
+    const rangeLabel = range === "today" ? "Today" : range === "month" ? "Month" : "Live";
+    const big = { dark: true, w: 480, h: 250, center: true };
+
+    let chartSpec, statsBlock;
+    if (range === "today") {
+      chartSpec = { title: "Today Hourly", subtitle: `SINCE 00:00  |  PEAK: ${peakHour.toUpperCase()}`, buckets: s.hourly, active: s.curHour, ...big };
+      statsBlock = {
+        center: true,
+        md: `**Total:** ${formatBytes(s.totalToday)}  \n**Download:** ${formatBytes(s.rxToday)}  •  **Upload:** ${formatBytes(s.txToday)}  \n**Peak Hour:** ${peakHour}  \n_Updated at ${s.updatedAt}_`,
+      };
+    } else if (range === "month") {
+      chartSpec = { title: `${s.monthLabel} Daily`, subtitle: `PEAK: ${peakDay.toUpperCase()}  |  AVG: ${formatBytes(avg)}/DAY`, buckets: s.daily, active: s.curDay - 1, ...big };
+      statsBlock = {
+        center: true,
+        md: `**Total:** ${formatBytes(s.totalMonth)}  \n**Download:** ${formatBytes(s.rxMonth)}  •  **Upload:** ${formatBytes(s.txMonth)}  \n**Daily Average:** ${formatBytes(avg)}  •  **Peak Day:** ${peakDay}`,
+      };
+    } else {
+      chartSpec = { kind: "netLive", ...big };
+      statsBlock = { center: true, liveStats: "net-dash", md: netLiveDashMd(live) };
+    }
+
+    const doRefresh = () => {
+      if (state.netRange === "live") pushNetLiveSample();
+      toast("Network usage refreshed");
+    };
+
+    return {
+      kind: "content",
+      name: "Network Dashboard",
+      title: `Network Dashboard  •  ${rangeLabel}`,
+      icon: "\uE774",
+      commands: [
+        { icon: "\uE9D9", name: "Show Live Speed", run: () => { state.netRange = "live"; } },
+        { icon: "\uE8BF", name: "Show Today", run: () => { state.netRange = "today"; } },
+        { icon: "\uE787", name: "Show This Month", run: () => { state.netRange = "month"; } },
+        { icon: "\uE72C", name: "Refresh Now", run: doRefresh },
+        { icon: "\uE713", ...uri("Open Windows Data Usage Settings", "ms-settings:datausage") },
+      ],
+      content: [
+        { chart: chartSpec },
+        {
+          form: {
+            compact: true,
+            actions: [
+              { id: "live", icon: "\uE9D9", label: "Live", primary: range === "live" },
+              { id: "today", icon: "\uE8BF", label: "Today", primary: range === "today" },
+              { id: "month", icon: "\uE787", label: "Month", primary: range === "month" },
+              { id: "refresh", icon: "\uE72C", label: "Refresh" },
+            ],
+            onAction(actionId) {
+              if (actionId === "live" || actionId === "today" || actionId === "month") {
+                state.netRange = actionId;
+                render();
+              } else if (actionId === "refresh") {
+                doRefresh();
+                render();
+              }
+            },
+          },
+        },
+        statsBlock,
+      ],
+    };
   },
 
   prayer() {
@@ -1060,15 +1369,79 @@ const PAGES = {
 
   aiUsage() {
     const ai = buildAiUsage();
-    const charts = {};
-    const items = [];
+    const dock = resolveAiDock(ai);
+    const win = state.aiWindow || "5h";
+    const winLabel = win === "week" ? "Weekly" : "5h";
+    const charts = {
+      "ai-compare": { kind: "aiCompare", ai, win, dark: true, w: 300, h: 175 },
+    };
+    const dockDetailBody = dock.mode === "auto"
+      ? `**Mode:** ${AI_DOCK_AUTO_LABEL}  \n**Showing:** ${dock.band.title}  •  ${dock.band.subtitle}\n\nAutomatically tracks whichever signed-in provider and window (5-hour or weekly) is closest to its limit.\n\nPress **Enter** to pin a specific provider to the Dock.`
+      : `**Mode:** ${dock.choiceLabel} (pinned)  \n**Showing:** ${dock.band.title}  •  ${dock.band.subtitle}\n\nAlways displays **${dock.choiceLabel}** on the Dock band using its tightest window (5-hour or weekly).\n\nPress **Enter** to choose another provider or switch back to auto.`;
+    const items = [
+      {
+        icon: "\uE9E9",
+        title: "Compare Providers",
+        subtitle: `${winLabel} remaining for Claude, Antigravity and Codex side by side`,
+        tags: [{ text: "Live", tone: "accent" }],
+        details: {
+          title: "Compare Providers",
+          body: "![Compare Providers](chart:ai-compare)\n\n_Redraws when new usage arrives_",
+        },
+        cmd: { name: "AI Usage Dashboard", ...go("aiDashboard") },
+        more: [
+          { icon: "\uE72C", name: "Refresh AI Usage", run: refreshAiUsage },
+        ],
+      },
+      {
+        icon: "\uE718",
+        title: `Dock Shows: ${dock.choiceLabel}`,
+        subtitle: "Choose which AI provider appears on the Dock",
+        tags: [{ text: "Dock", tone: "accent" }],
+        details: {
+          title: "Dock Display",
+          body: dockDetailBody,
+        },
+        cmd: { name: "Dock Provider", ...go("aiDockPicker") },
+        more: [
+          { icon: "\uE72C", name: "Refresh AI Usage", run: refreshAiUsage },
+        ],
+      },
+    ];
     for (const p of ai.providers) {
+      if (p.linkOnly) {
+        items.push({
+          icon: logo(p.id),
+          title: p.name,
+          subtitle: "Usage is shown on cursor.com  •  press Enter to open",
+          tags: [{ text: "Link", tone: "" }],
+          details: {
+            title: p.name,
+            body: `**Source:** ${p.plan}\n\n${p.name} doesn't offer a local way to read plan usage, so DockPulse doesn't show numbers for it and never reads your ${p.name} sign-in.\n\nPress **Enter** to open your usage page in the browser.`,
+          },
+          cmd: { icon: "\uE774", ...uri(`Open ${p.name} Usage`, p.url) },
+          more: [
+            { icon: "\uE774", ...uri(`Open ${p.name} Usage`, p.url) },
+            { icon: "\uE72C", name: "Refresh All AI Usage", run: refreshAiUsage },
+          ],
+        });
+        continue;
+      }
       const key = "ai-" + p.id;
       charts[key] = { kind: "aiBars", provider: p, dark: true, w: 300, h: 175 };
+      const isPinned = state.aiDock === p.id;
+      const showOnDockCmd = {
+        icon: "\uE718",
+        name: isPinned ? "Showing on Dock" : "Show on Dock",
+        run: () => {
+          if (!isPinned) state.aiDock = p.id;
+          toast(`Dock now shows ${p.name}`);
+        },
+      };
       if (!p.signedIn) {
         const sub = p.unavailableSub || "No usage data available";
         items.push({
-          icon: "\uE946",
+          icon: logo(p.id),
           title: p.name,
           subtitle: sub,
           tags: [{ text: "No data", tone: "warn" }],
@@ -1078,7 +1451,8 @@ const PAGES = {
           },
           cmd: refresh(`Refresh ${p.name}`),
           more: [
-            { icon: "\uE72C", ...refresh("Refresh All AI Usage") },
+            showOnDockCmd,
+            { icon: "\uE72C", name: "Refresh All AI Usage", run: refreshAiUsage },
             { icon: "\uE774", ...uri(`Open ${p.name} Settings`, p.url) },
           ],
         });
@@ -1087,7 +1461,7 @@ const PAGES = {
       const limitHit = p.shortPct === 0 || p.weekPct === 0;
       const age = p.age || "updated 3 min ago";
       items.push({
-        icon: limitHit ? "\uE7BA" : "\uE99A",
+        icon: logo(p.id),
         title: p.name,
         subtitle: limitHit
           ? `Limit reached  •  5h resets in ${p.shortReset}  •  Weekly resets in ${p.weekReset}  •  ${age}`
@@ -1102,7 +1476,8 @@ const PAGES = {
         },
         cmd: refresh(`Refresh ${p.name}`),
         more: [
-          { icon: "\uE72C", ...refresh("Refresh All AI Usage") },
+          showOnDockCmd,
+          { icon: "\uE72C", name: "Refresh All AI Usage", run: refreshAiUsage },
           { icon: "\uE774", ...uri(`Open ${p.name} Usage`, p.url) },
         ],
       });
@@ -1118,8 +1493,9 @@ const PAGES = {
       },
       cmd: { name: "Copy Setup Snippet", run: () => toast("Copied Claude statusLine script & settings.json snippet") },
     });
-    const fallbackKey = ai.tightest ? `ai-${ai.tightest.provider.id}` : `ai-${ai.providers[0].id}`;
-    const fallbackTitle = ai.tightest ? ai.tightest.provider.name : ai.providers[0].name;
+    const firstTracked = ai.providers.find(p => !p.linkOnly) || ai.providers[0];
+    const fallbackKey = ai.tightest ? `ai-${ai.tightest.provider.id}` : `ai-${firstTracked.id}`;
+    const fallbackTitle = ai.tightest ? ai.tightest.provider.name : firstTracked.name;
     items.push({
       icon: "\uE72C",
       title: "Refresh AI Usage",
@@ -1128,9 +1504,111 @@ const PAGES = {
         title: `${fallbackTitle} (Tightest Limit)`,
         body: `![AI Usage](chart:${fallbackKey})\n\nReads local usage snapshots for Claude (~/.claude/dockpulse-usage.json) and Codex (~/.codex/sessions). Strictly offline.`,
       },
-      cmd: refresh("Refresh AI Usage"),
+      cmd: { name: "Refresh AI Usage", run: refreshAiUsage },
     });
     return { kind: "list", name: "AI Usage", title: "AI Usage Limits", icon: "\uE99A", placeholder: "Filter AI providers...", showDetails: true, charts, items };
+  },
+
+  aiDockPicker() {
+    const ai = buildAiUsage();
+    const cur = state.aiDock || "auto";
+    const items = [
+      {
+        icon: "\uE99A",
+        title: AI_DOCK_AUTO_LABEL,
+        subtitle: "Whichever provider and window is closest to its limit",
+        tags: cur === "auto" ? [{ icon: "\uE73E", text: "Selected", tone: "accent" }] : [],
+        cmd: {
+          name: "Select Auto",
+          back: true,
+          run: () => {
+            state.aiDock = "auto";
+            toast(`Dock now shows ${AI_DOCK_AUTO_LABEL}`);
+          },
+        },
+      },
+      ...ai.providers.filter(p => !p.linkOnly).map(p => {
+        const sel = cur === p.id;
+        const tags = [];
+        if (sel) tags.push({ icon: "\uE73E", text: "Selected", tone: "accent" });
+        if (!p.signedIn) tags.push({ text: "No data", tone: "warn" });
+        return {
+          icon: logo(p.id),
+          title: p.name,
+          subtitle: p.signedIn
+            ? `5h ${p.shortPct}%  •  Weekly ${p.weekPct}%`
+            : (p.unavailableSub || "No usage data available"),
+          tags,
+          cmd: {
+            name: `Show ${p.name} on Dock`,
+            back: true,
+            run: () => {
+              state.aiDock = p.id;
+              toast(`Dock now shows ${p.name}`);
+            },
+          },
+        };
+      }),
+    ];
+    return {
+      kind: "list",
+      name: "Dock Provider",
+      title: "Choose What the AI Usage Dock Shows",
+      icon: "\uE718",
+      placeholder: "Filter providers...",
+      items,
+    };
+  },
+
+  aiDashboard() {
+    const ai = buildAiUsage();
+    const win = state.aiWindow || "5h";
+    const isWeek = win === "week";
+    const winLabel = isWeek ? "Weekly" : "5h";
+    const lines = ai.providers.map(p => {
+      if (p.linkOnly) return `**${p.name}:** usage on cursor.com (link only)`;
+      if (!p.signedIn) return `**${p.name}:** ${p.unavailableSub || "No data"}  •  ${p.plan}`;
+      const pct = isWeek ? p.weekPct : p.shortPct;
+      const reset = isWeek ? p.weekReset : p.shortReset;
+      return `**${p.name}:** ${pct}% remaining (resets in ${reset})  •  ${p.plan}`;
+    });
+    lines.push(`_Last checked at ${ai.updatedAt}_`);
+
+    return {
+      kind: "content",
+      name: "AI Usage Dashboard",
+      title: `AI Usage Dashboard  •  ${winLabel}`,
+      icon: "\uE9E9",
+      commands: [
+        { icon: "\uE823", name: "Show 5-Hour Window", run: () => { state.aiWindow = "5h"; } },
+        { icon: "\uE8C0", name: "Show Weekly Limit", run: () => { state.aiWindow = "week"; } },
+        { icon: "\uE72C", name: "Refresh AI Usage", run: refreshAiUsage },
+        { icon: "\uE774", ...uri("Open Cursor Usage", "https://cursor.com/dashboard?tab=usage") },
+      ],
+      content: [
+        { chart: { kind: "aiCompare", ai, win, dark: true, w: 480, h: 245, center: true } },
+        {
+          form: {
+            compact: true,
+            actions: [
+              { id: "5h", icon: "\uE823", label: "5h", primary: win === "5h" },
+              { id: "week", icon: "\uE8C0", label: "Weekly", primary: win === "week" },
+              { id: "refresh", icon: "\uE72C", label: "Refresh" },
+            ],
+            onAction(actionId) {
+              if (actionId === "5h" || actionId === "week") {
+                state.aiWindow = actionId;
+                render();
+              } else if (actionId === "refresh") {
+                refreshAiUsage();
+                render();
+              }
+            },
+          },
+        },
+        { center: true, md: lines.join("  \n") },
+      ],
+    };
   },
 
   today() {
@@ -1508,9 +1986,7 @@ function dockBands() {
   const net = buildNetwork();
   const pr = buildPrayer();
   const ai = buildAiUsage();
-  const aiBand = !ai.tightest
-    ? { icon: "\uE99A", title: "AI Usage", subtitle: "No data" }
-    : { icon: ai.tightest.pct === 0 ? "\uE7BA" : "\uE99A", title: `${ai.tightest.provider.name} ${ai.tightest.pct}%`, subtitle: `${ai.tightest.win} • resets ${ai.tightest.reset}` };
+  const aiBand = resolveAiDock(ai).band;
   const td = todayStats();
   const coffeeDue = isCoffeeDue();
   const todayBand = coffeeDue
@@ -1537,9 +2013,11 @@ function dockBands() {
       { icon: "", ...refresh("Refresh Prayer Times") },
     ] },
     { label: "AI Usage Limits", page: "aiUsage", ...aiBand, more: [
-      { icon: "\uE72C", ...refresh("Refresh AI Usage") },
+      { icon: "\uE718", name: "Choose Dock Provider...", ...go("aiDockPicker") },
+      { icon: "\uE72C", name: "Refresh AI Usage", run: refreshAiUsage },
       { icon: "\uE774", ...uri("Open Claude Usage", "https://claude.ai/settings/usage") },
       { icon: "\uE774", ...uri("Open Codex Usage", "https://chatgpt.com/codex/settings/usage") },
+      { icon: "\uE774", ...uri("Open Cursor Usage", "https://cursor.com/dashboard?tab=usage") },
     ] },
     { label: "Today — Daily Checklist", page: "today", ...todayBand, more: [
       { icon: "\uEB42", name: `Add 1 Glass of Water (${state.today.water}/${state.today.waterGoal})`, run: () => { state.today.water += 1; toast(`Water: ${state.today.water}/${state.today.waterGoal}`); } },
@@ -1699,6 +2177,142 @@ function drawChart(cv, spec) {
       c.fillStyle = rgb(active ? P.text1 : P.text2);
       c.fillText(lbl, lx, plotB + 10);
     }
+  }
+}
+
+// The C# chart renderers use an uppercase-only 5x7 pixel font; mirror that on the new charts' canvases.
+function upperCaseCanvasText(c) {
+  if (c.__upperText) return;
+  const fill = c.fillText.bind(c), measure = c.measureText.bind(c);
+  c.fillText = (t, ...rest) => fill(String(t).toUpperCase(), ...rest);
+  c.measureText = t => measure(String(t).toUpperCase());
+  c.__upperText = true;
+}
+
+/* =====================================================================
+   Live network speed line/area chart (same dark palette & rules as drawChart)
+   ===================================================================== */
+function drawNetLiveChart(cv, spec) {
+  const w = spec.w || 480, h = spec.h || 250;
+  const P = spec.dark !== false ? PALETTES.dark : PALETTES.light;
+  const dpr = Math.max(1, window.devicePixelRatio || 1);
+  cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr);
+  sizeChartCanvas(cv, w);
+  const c = cv.getContext("2d");
+  upperCaseCanvasText(c);
+  c.setTransform(dpr, 0, 0, dpr, 0, 0);
+  c.textBaseline = "top";
+  const box = (x, y, bw, bh, r, color) => { c.beginPath(); c.roundRect(x, y, bw, bh, r); c.fillStyle = rgb(color); c.fill(); };
+
+  c.beginPath(); c.roundRect(0.5, 0.5, w - 1, h - 1, 12);
+  c.fillStyle = rgb(P.cardBg); c.fill(); c.strokeStyle = rgb(P.cardBorder); c.lineWidth = 1; c.stroke();
+
+  const live = netLiveStats();
+  const padL = 18, padR = 18;
+  const upperTitle = "LIVE SPEED";
+  const subtitle = `↓ ${formatBps(live.cur.down)}  |  ↑ ${formatBps(live.cur.up)}  |  PEAK ↓ ${formatBps(live.peakDown)}`;
+  const upText = "UP", downText = "DOWN";
+
+  c.font = FONT1;
+  const upW = c.measureText(upText).width, downW = c.measureText(downText).width;
+  const sw = 8, swGap = 5, lgGap = 12;
+  const upX = w - padR - upW, upSwX = upX - swGap - sw, downX = upSwX - lgGap - downW, downSwX = downX - swGap - sw;
+  c.font = FONT2;
+  const big = padL + c.measureText(upperTitle).width + 12 <= downSwX;
+  c.font = big ? FONT2 : FONT1; c.fillStyle = rgb(P.text1); c.textAlign = "left";
+  c.fillText(upperTitle, padL, big ? 14 : 16);
+
+  c.font = FONT1; c.fillStyle = rgb(P.text2);
+  c.fillText(subtitle, padL, big ? 34 : 30);
+
+  // Same 6 px/char layout rule as NetworkChartRenderer
+  const px = s => s.length * 6 - 1;
+  const downSwPx = w - padR - px(upText) - swGap - sw - lgGap - px(downText) - swGap - sw;
+  const legendY = !big && padL + px(upperTitle) + 12 > downSwPx ? 44 : 16;
+
+  c.font = FONT1;
+  box(downSwX, legendY + 1, sw, sw, 2, P.down); c.fillStyle = rgb(P.text1); c.fillText(downText, downX, legendY);
+  box(upSwX, legendY + 1, sw, sw, 2, P.up); c.fillStyle = rgb(P.text1); c.fillText(upText, upX, legendY);
+
+  const plotL = 68, plotR = w - padR, plotT = 58, plotB = h - 34;
+  const plotW = Math.max(40, plotR - plotL), plotH = Math.max(40, plotB - plotT);
+  const maxVal = Math.max(live.peakDown, live.peakUp);
+  const yMax = niceBpsCeiling(maxVal), yMid = Math.floor(yMax / 2);
+
+  c.strokeStyle = rgb(P.grid); c.lineWidth = 1; c.setLineDash([3, 3]);
+  for (const y of [plotT, plotT + Math.floor(plotH / 2)]) {
+    c.beginPath(); c.moveTo(plotL, y + 0.5); c.lineTo(plotR, y + 0.5); c.stroke();
+  }
+  c.setLineDash([]); c.strokeStyle = rgb(P.axis);
+  c.beginPath(); c.moveTo(plotL, plotB + 0.5); c.lineTo(plotR, plotB + 0.5); c.stroke();
+
+  c.font = FONT1; c.fillStyle = rgb(P.text2); c.textAlign = "right";
+  c.fillText(formatShortBpsAxis(yMax), plotL - 8, plotT - 4);
+  c.fillText(formatShortBpsAxis(yMid), plotL - 8, plotT + Math.floor(plotH / 2) - 4);
+  c.fillText("0", plotL - 8, plotB - 4);
+  c.textAlign = "left";
+
+  const samples = live.samples, n = samples.length;
+  if (n > 1) {
+    const xAt = i => plotL + (i / (n - 1)) * plotW;
+    const yAt = v => plotB - Math.max(0, Math.min(1, v / yMax)) * (plotH - 2);
+
+    if (live.noTraffic) {
+      c.strokeStyle = rgb(P.down); c.lineWidth = 1.8;
+      c.beginPath(); c.moveTo(plotL, plotB - 1); c.lineTo(plotR, plotB - 1); c.stroke();
+
+      const msg = "No traffic in the last 60 s";
+      c.font = FONT1;
+      const mw = c.measureText(msg).width;
+      const mx = plotL + plotW / 2, my = plotT + Math.floor(plotH / 2) - 5;
+      box(mx - mw / 2 - 6, my - 3, mw + 12, 15, 4, P.cardBg);
+      c.fillStyle = rgb(P.text2); c.textAlign = "center";
+      c.fillText(msg, mx, my);
+      c.textAlign = "left";
+    } else {
+      const drawSeries = (key, col, fillRgba, lineW) => {
+        c.beginPath();
+        c.moveTo(xAt(0), plotB);
+        for (let i = 0; i < n; i++) c.lineTo(xAt(i), yAt(samples[i][key]));
+        c.lineTo(xAt(n - 1), plotB);
+        c.closePath();
+        c.fillStyle = fillRgba;
+        c.fill();
+
+        c.beginPath();
+        for (let i = 0; i < n; i++) {
+          const x = xAt(i), y = yAt(samples[i][key]);
+          if (i === 0) c.moveTo(x, y); else c.lineTo(x, y);
+        }
+        c.strokeStyle = rgb(col);
+        c.lineWidth = lineW;
+        c.lineJoin = "round";
+        c.lineCap = "round";
+        c.stroke();
+
+        const lx = xAt(n - 1), ly = yAt(samples[n - 1][key]);
+        c.beginPath(); c.arc(lx, ly, 3, 0, Math.PI * 2);
+        c.fillStyle = rgb(col); c.fill();
+      };
+      drawSeries("down", P.down, "rgba(56, 189, 248, 0.16)", 2);
+      drawSeries("up", P.up, "rgba(167, 139, 250, 0.16)", 1.6);
+    }
+  }
+
+  const xTicks = [
+    { frac: 0, lbl: "60s", active: false },
+    { frac: 0.25, lbl: "45s", active: false },
+    { frac: 0.5, lbl: "30s", active: false },
+    { frac: 0.75, lbl: "15s", active: false },
+    { frac: 1, lbl: "now", active: true },
+  ];
+  c.font = FONT1;
+  for (const t of xTicks) {
+    const cx = plotL + t.frac * plotW;
+    const lw = c.measureText(t.lbl).width;
+    const lx = Math.min(plotR - lw, Math.max(plotL, cx - lw / 2));
+    c.fillStyle = rgb(t.active ? P.text1 : P.text2);
+    c.fillText(t.lbl, lx, plotB + 10);
   }
 }
 
@@ -1963,8 +2577,10 @@ function drawAiUsageCard(cv, spec) {
   c.fillStyle = rgb(P.cardBg); c.fill(); c.strokeStyle = rgb(P.cardBorder); c.lineWidth = 1; c.stroke();
 
   const padL = 18, padR = 18, barW = w - padL - padR;
+  const logoSize = 16;
+  drawAiLogo(c, p.id, padL, 13, logoSize, rgb(P.text1), () => { if (cv.isConnected) drawAiUsageCard(cv, spec); });
   c.font = FONT2; c.fillStyle = rgb(P.text1); c.textAlign = "left";
-  c.fillText(`${p.name.toUpperCase()} USAGE`, padL, 14);
+  c.fillText(`${p.name.toUpperCase()} USAGE`, padL + logoSize + 6, 14);
   c.font = FONT1; c.fillStyle = rgb(P.text2);
   c.fillText(p.plan.toUpperCase(), padL, 34);
 
@@ -2004,6 +2620,114 @@ function drawAiUsageCard(cv, spec) {
       c.fillStyle = "rgb(251, 113, 133)";
       c.fillText("LIMIT REACHED", w - padR, barY + 16);
     }
+  }
+  c.textAlign = "left";
+}
+
+function drawAiCompareCard(cv, spec) {
+  const w = spec.w || 480, h = spec.h || 245;
+  const P = spec.dark !== false ? PALETTES.dark : PALETTES.light;
+  const ai = spec.ai;
+  const isWeek = spec.win === "week";
+  const dpr = Math.max(1, window.devicePixelRatio || 1);
+  cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr);
+  sizeChartCanvas(cv, w);
+  const c = cv.getContext("2d");
+  upperCaseCanvasText(c);
+  c.setTransform(dpr, 0, 0, dpr, 0, 0);
+  c.textBaseline = "top";
+  const box = (x, y, bw, bh, r, col) => { c.beginPath(); c.roundRect(x, y, bw, bh, r); c.fillStyle = col; c.fill(); };
+
+  c.beginPath(); c.roundRect(0.5, 0.5, w - 1, h - 1, 12);
+  c.fillStyle = rgb(P.cardBg); c.fill(); c.strokeStyle = rgb(P.cardBorder); c.lineWidth = 1; c.stroke();
+
+  const padL = 18, padR = 18, barW = w - padL - padR;
+  const title = isWeek ? "WEEKLY LIMIT" : "5-HOUR WINDOW";
+  const providers = ai.providers.filter(p => !p.linkOnly);
+  let tight = null;
+  for (const p of providers) {
+    if (!p.signedIn) continue;
+    const pct = isWeek ? p.weekPct : p.shortPct;
+    if (!tight || pct < tight.pct) tight = { name: p.name, pct };
+  }
+  const sub = tight
+    ? `TIGHTEST: ${tight.name.toUpperCase()} ${tight.pct}%  |  CHECKED ${ai.updatedAt}`
+    : `NO DATA  |  CHECKED ${ai.updatedAt}`;
+
+  c.font = FONT2; c.fillStyle = rgb(P.text1); c.textAlign = "left";
+  c.fillText(title, padL, 14);
+  c.font = FONT1; c.fillStyle = rgb(P.text2);
+  c.fillText(sub, padL, 34);
+
+  const compact = h <= 190;
+  const rowStart = compact ? 54 : 64;
+  const rowStep = compact ? 38 : 54;
+  const barOffset = compact ? 14 : 17;
+  const barH = compact ? 11 : 16;
+  const logoSize = compact ? 12 : 14;
+  const logoOffsetY = compact ? -1.5 : -2.5;
+  const nameX = padL + logoSize + 5;
+  const accentCol = isWeek ? rgb(P.up) : rgb(P.down);
+  const redraw = () => { if (cv.isConnected) drawAiCompareCard(cv, spec); };
+
+  if (!compact && providers.length > 0) {
+    const gTop = rowStart + barOffset - 4;
+    const gBot = rowStart + (providers.length - 1) * rowStep + barOffset + barH + 4;
+    c.strokeStyle = rgb(P.grid); c.lineWidth = 1; c.setLineDash([3, 3]);
+    for (const frac of [0.25, 0.5, 0.75]) {
+      const gx = Math.round(padL + barW * frac) + 0.5;
+      c.beginPath(); c.moveTo(gx, gTop); c.lineTo(gx, gBot); c.stroke();
+    }
+    c.setLineDash([]);
+  }
+
+  providers.forEach((p, idx) => {
+    const y = rowStart + idx * rowStep;
+    const by = y + barOffset;
+
+    if (!p.signedIn) {
+      drawAiLogo(c, p.id, padL, y + logoOffsetY, logoSize, rgb(P.text2), redraw);
+      c.font = FONT1;
+      c.fillStyle = rgb(P.text2); c.textAlign = "left";
+      c.fillText(p.name, nameX, y);
+      c.textAlign = "right";
+      c.fillText(p.unavailableSub || "No data", w - padR, y);
+      box(padL, by, barW, barH, barH / 2, rgb(P.trackElapsed));
+      return;
+    }
+
+    const pct = isWeek ? p.weekPct : p.shortPct;
+    const reset = isWeek ? p.weekReset : p.shortReset;
+    const tone = pctTone(pct);
+    const fillCol = tone === "danger" ? "rgb(244, 63, 94)" : tone === "warn" ? "rgb(245, 158, 11)" : accentCol;
+    const txtCol = tone === "danger" ? "rgb(251, 113, 133)" : tone === "warn" ? "rgb(251, 191, 36)" : rgb(P.text1);
+
+    drawAiLogo(c, p.id, padL, y + logoOffsetY, logoSize, rgb(P.text1), redraw);
+    c.font = FONT1;
+    c.textAlign = "left";
+    c.fillStyle = txtCol;
+    c.fillText(`${p.name}  ${pct}%`, nameX, y);
+
+    c.textAlign = "right";
+    c.fillStyle = tone === "danger" ? "rgb(251, 113, 133)" : rgb(P.text2);
+    c.fillText(`resets in ${reset}`, w - padR, y);
+
+    box(padL, by, barW, barH, barH / 2, rgb(P.trackElapsed));
+    if (pct > 0) {
+      const fw = Math.max(barH, Math.round(barW * Math.min(100, pct) / 100));
+      box(padL, by, fw, barH, barH / 2, fillCol);
+    } else {
+      c.beginPath(); c.roundRect(padL + 0.5, by + 0.5, barW - 1, barH - 1, barH / 2);
+      c.strokeStyle = "rgba(244, 63, 94, 0.55)"; c.lineWidth = 1; c.stroke();
+    }
+  });
+
+  if (!compact) {
+    const scaleY = h - 20;
+    c.font = FONT1; c.fillStyle = rgb(P.text2);
+    c.textAlign = "left"; c.fillText("0%", padL, scaleY);
+    c.textAlign = "center"; c.fillText("50%", padL + barW / 2, scaleY);
+    c.textAlign = "right"; c.fillText("100%", w - padR, scaleY);
   }
   c.textAlign = "left";
 }
@@ -2216,7 +2940,7 @@ function renderDock() {
     const el = document.createElement("button");
     el.className = "band" + (b.page === open ? " open" : "");
     el.title = b.label;
-    el.innerHTML = `<span class="ic">${b.icon}</span><span><div class="t">${esc(b.title)}</div><div class="s">${esc(b.subtitle)}</div></span>`;
+    el.innerHTML = `<span class="ic">${iconHtml(b.icon)}</span><span><div class="t">${esc(b.title)}</div><div class="s">${esc(b.subtitle)}</div></span>`;
     // A band either opens its page or, like Working Folder, runs its command directly
     el.addEventListener("click", () => { if (b.run) { b.run(); render(); } else openPage(b.page, true); });
     el.addEventListener("contextmenu", e => { e.preventDefault(); showMenu(b.more, e.clientX, e.clientY); });
@@ -2228,7 +2952,7 @@ function renderDock() {
       qa.className = "band band-icon";
       qa.title = b.quickAction.title;
       qa.setAttribute("aria-label", b.quickAction.title);
-      qa.innerHTML = `<span class="ic">${b.quickAction.icon}</span>`;
+      qa.innerHTML = `<span class="ic">${iconHtml(b.quickAction.icon)}</span>`;
       qa.addEventListener("click", e => { e.stopPropagation(); b.quickAction.run(); render(); });
       qa.addEventListener("contextmenu", e => { e.preventDefault(); showMenu(b.more, e.clientX, e.clientY); });
       grp.appendChild(qa);
@@ -2324,7 +3048,7 @@ function renderFormBlock(form) {
       const btn = document.createElement("button");
       btn.type = a.submit ? "submit" : "button";
       btn.className = "form-btn" + (a.primary ? " primary" : "");
-      btn.innerHTML = (a.icon ? `<span class="ic">${a.icon}</span>` : "") + `<span>${esc(a.label)}</span>`;
+      btn.innerHTML = (a.icon ? `<span class="ic">${iconHtml(a.icon)}</span>` : "") + `<span>${esc(a.label)}</span>`;
       if (!a.submit) btn.addEventListener("click", () => trigger(a.id));
       bar.appendChild(btn);
     }
@@ -2343,7 +3067,7 @@ function renderTop() {
   const top = $("palTop");
   const root = state.stack.length === 1;
   top.innerHTML = root
-    ? `<span class="lead ic"></span>`
+    ? `<span class="lead ic">\uE721</span>`
     : `<button class="lead ic" id="backBtn" title="Back (Esc)"></button>`;
   const input = document.createElement("input");
   input.id = "search";
@@ -2367,9 +3091,24 @@ function renderBody() {
     for (const block of current.content) {
       if (block.chart) {
         const cv = document.createElement("canvas");
-        cv.className = "chart";
-        wrap.appendChild(cv);
-        drawChart(cv, block.chart);
+        cv.className = "chart" + (block.chart.center ? " dash-chart" : "");
+        cv.setAttribute("role", "img");
+        if (block.chart.kind === "netLive") {
+          cv.setAttribute("data-live", "net");
+          cv.setAttribute("data-w", String(block.chart.w || 480));
+          cv.setAttribute("data-h", String(block.chart.h || 250));
+          cv.setAttribute("aria-label", "Live Network Speed");
+          wrap.appendChild(cv);
+          drawNetLiveChart(cv, block.chart);
+        } else if (block.chart.kind === "aiCompare") {
+          cv.setAttribute("aria-label", "AI Usage Provider Comparison");
+          wrap.appendChild(cv);
+          drawAiCompareCard(cv, block.chart);
+        } else {
+          cv.setAttribute("aria-label", block.chart.title || "Chart");
+          wrap.appendChild(cv);
+          drawChart(cv, block.chart);
+        }
       } else if (block.pomo) {
         const cv = document.createElement("canvas");
         cv.className = "pomo-card";
@@ -2385,6 +3124,12 @@ function renderBody() {
         drawPomodoroStatsChart(cv, block.pomoStats);
       } else if (block.form) {
         wrap.appendChild(renderFormBlock(block.form));
+      } else if (block.liveStats || block.center) {
+        const div = document.createElement("div");
+        if (block.center) div.className = "dash-md";
+        if (block.liveStats) div.setAttribute("data-live-stats", block.liveStats);
+        div.innerHTML = md(block.md);
+        wrap.appendChild(div);
       } else {
         wrap.insertAdjacentHTML("beforeend", md(block.md));
       }
@@ -2436,13 +3181,14 @@ function renderBody() {
     const row = document.createElement("div");
     row.className = "row" + (i === state.sel ? " sel" : "");
     row.setAttribute("role", "option");
+    if (it.liveRow) row.setAttribute("data-live-row", it.liveRow);
     const tagsHtml = it.tags && it.tags.length
       ? `<div class="tags">${it.tags.map(t => typeof t === "string"
         ? `<span class="tag">${esc(t)}</span>`
-        : `<span class="tag${t.tone ? " " + esc(t.tone) : ""}">${esc(t.text)}</span>`).join("")}</div>`
+        : `<span class="tag${t.tone ? " " + esc(t.tone) : ""}">${t.icon ? `<span class="ic">${iconHtml(t.icon)}</span>` : ""}${esc(t.text)}</span>`).join("")}</div>`
       : "";
     row.innerHTML =
-      `<span class="ic">${it.icon}</span>` +
+      `<span class="ic">${iconHtml(it.icon)}</span>` +
       `<div class="txt"><div class="ti">${esc(it.title)}</div>${it.subtitle ? `<div class="su">${esc(it.subtitle)}</div>` : ""}</div>` +
       tagsHtml;
     row.addEventListener("click", () => selectRow(i));
@@ -2475,7 +3221,13 @@ function selectRow(i) {
       const spec = current.charts[cv.dataset.chart];
       if (spec) {
         if (spec.kind === "aiBars") drawAiUsageCard(cv, spec);
-        else drawChart(cv, spec);
+        else if (spec.kind === "aiCompare") drawAiCompareCard(cv, spec);
+        else if (spec.kind === "netLive") {
+          cv.setAttribute("data-live", "net");
+          cv.setAttribute("data-w", String(spec.w || 320));
+          cv.setAttribute("data-h", String(spec.h || 185));
+          drawNetLiveChart(cv, spec);
+        } else drawChart(cv, spec);
       }
     });
   }
@@ -2483,7 +3235,7 @@ function selectRow(i) {
 }
 
 function renderBar() {
-  $("barIcon").textContent = current.icon;
+  $("barIcon").innerHTML = iconHtml(current.icon);
   $("barTitle").textContent = current.title;
   const it = visibleItems[state.sel];
   const primary = current.kind === "list" ? (it ? it.cmd : null) : (current.primaryCmd || null);
@@ -2527,7 +3279,7 @@ function showMenu(items, x, y) {
   items.forEach(it => {
     const b = document.createElement("button");
     b.setAttribute("role", "menuitem");
-    b.innerHTML = `<span class="ic">${it.icon || ""}</span><span>${esc(it.name)}</span>`;
+    b.innerHTML = `<span class="ic">${iconHtml(it.icon)}</span><span>${esc(it.name)}</span>`;
     b.addEventListener("click", e => { e.stopPropagation(); invoke(it); });
     menu.appendChild(b);
   });
@@ -2554,7 +3306,7 @@ function toast(msg) {
 }
 
 function showWinNotifCustom(icon, title, body) {
-  $("wnIcon").textContent = icon;
+  $("wnIcon").innerHTML = iconHtml(icon);
   $("wnTitle").textContent = title;
   $("wnBody").textContent = body;
   $("winNotif").hidden = false;
@@ -2632,6 +3384,9 @@ matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => { if
 
 $("scenario").addEventListener("change", e => {
   state.scenario = e.target.value;
+  state.aiDock = state.scenario === "ai_dock_antigravity" ? "antigravity" : "auto";
+  resetAiState();
+  state.netLive = initNetLive(state.scenario === "notraffic");
   state.prayer = state.scenario === "tehran"
     ? { ...state.prayer, regionId: "tehran", methodId: "tehran", asr: "Standard" }
     : { ...state.prayer, regionId: "kabul", methodId: "karachi", asr: "Hanafi" };
@@ -2649,11 +3404,17 @@ $("scenario").addEventListener("change", e => {
     state.pomodoro.running = false;
   }
 
-  if (state.scenario === "prayertime") {
+  if (state.scenario === "net_live") {
+    state.netRange = "live";
+    state.stack = ["home", "network", "networkDashboard"];
+  } else if (state.scenario === "ai_compare") {
+    state.aiWindow = "5h";
+    state.stack = ["home", "aiUsage", "aiDashboard"];
+  } else if (state.scenario === "prayertime") {
     state.clock = T("15:01"); $("clock").value = "15:01";
     state.prayer.notifications = true;
     state.stack = ["home", "prayer"];
-  } else if (state.scenario === "ai_limit" || state.scenario === "ai_nosignin") {
+  } else if (state.scenario === "ai_limit" || state.scenario === "ai_nosignin" || state.scenario === "ai_dock_antigravity") {
     state.stack = ["home", "aiUsage"];
   } else if (state.scenario === "bt_fallback") {
     state.wireless = { pinnedId: "airpods-pro-3", pinnedName: "AirPods Pro 3" };
@@ -2700,6 +3461,52 @@ setInterval(() => {
   if (cv) drawPomodoroCard(cv, state.pomodoro);
 }, 1000);
 
+// Live 2-second network speed sampler (redraws only visible live canvases & updates row text in place)
+setInterval(() => {
+  pushNetLiveSample();
+  const live = netLiveStats();
+  document.querySelectorAll('canvas[data-live="net"]').forEach(cv => {
+    drawNetLiveChart(cv, {
+      dark: true,
+      w: Number(cv.dataset.w) || 320,
+      h: Number(cv.dataset.h) || 185,
+    });
+  });
+  const liveRow = document.querySelector('.row[data-live-row="net"]');
+  if (liveRow) {
+    const newTitle = `Live Speed: ↓ ${formatBps(live.cur.down)} • ↑ ${formatBps(live.cur.up)}`;
+    const ti = liveRow.querySelector(".ti");
+    const su = liveRow.querySelector(".su");
+    if (ti) ti.textContent = newTitle;
+    if (su) su.textContent = "Last 60 seconds  •  updates every 2 s";
+    const item = visibleItems.find(it => it.liveRow === "net");
+    if (item) {
+      item.title = newTitle;
+      item.details.body = netLiveDetailsBody(live);
+    }
+  }
+  const detLive = document.querySelector('#details canvas[data-live="net"]');
+  if (detLive) {
+    const detMd = detLive.closest(".md");
+    const statsP = detMd && detMd.querySelectorAll("p")[1];
+    if (statsP) {
+      statsP.innerHTML =
+        `<strong>Download:</strong> ${esc(formatBps(live.cur.down))}  •  <strong>Upload:</strong> ${esc(formatBps(live.cur.up))}<br>` +
+        `<strong>Peak (60 s):</strong> ↓ ${esc(formatBps(live.peakDown))}  •  ↑ ${esc(formatBps(live.peakUp))}<br>` +
+        `<em>Sampled every 2 s while this page is open</em>`;
+    }
+  }
+  const dashStats = document.querySelector('[data-live-stats="net-dash"]');
+  if (dashStats) {
+    dashStats.innerHTML = md(netLiveDashMd(live));
+  }
+}, 2000);
+
+for (const id of Object.keys(AI_LOGOS)) {
+  getAiLogoImage(id, rgb(PALETTES.dark.text1));
+  getAiLogoImage(id, rgb(PALETTES.dark.text2));
+  getAiLogoImage(id, rgb(PALETTES.light.text1));
+}
 let savedTheme = "auto";
 try { savedTheme = localStorage.getItem("dockpulse-preview-theme") || "auto"; } catch (_) { /* storage unavailable */ }
 setTheme(["auto", "light", "dark"].includes(savedTheme) ? savedTheme : "auto");

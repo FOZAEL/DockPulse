@@ -50,30 +50,40 @@ internal static class DockPulseHelpers
         }
     }
 
-    public static Tag CreateTag(string text, TagTone tone = TagTone.Default) => tone switch
+    public static Tag CreateTag(string text, TagTone tone = TagTone.Default, IconInfo? icon = null)
     {
-        TagTone.Accent => new Tag(text)
+        Tag tag = tone switch
         {
-            Foreground = ColorHelpers.FromRgb(56, 189, 248),
-            Background = ColorHelpers.FromArgb(36, 56, 189, 248),
-        },
-        TagTone.Ok => new Tag(text)
+            TagTone.Accent => new Tag(text)
+            {
+                Foreground = ColorHelpers.FromRgb(56, 189, 248),
+                Background = ColorHelpers.FromArgb(36, 56, 189, 248),
+            },
+            TagTone.Ok => new Tag(text)
+            {
+                Foreground = ColorHelpers.FromRgb(52, 211, 153),
+                Background = ColorHelpers.FromArgb(36, 16, 185, 129),
+            },
+            TagTone.Warn => new Tag(text)
+            {
+                Foreground = ColorHelpers.FromRgb(251, 191, 36),
+                Background = ColorHelpers.FromArgb(38, 245, 158, 11),
+            },
+            TagTone.Danger => new Tag(text)
+            {
+                Foreground = ColorHelpers.FromRgb(251, 113, 133),
+                Background = ColorHelpers.FromArgb(38, 244, 63, 94),
+            },
+            _ => new Tag(text),
+        };
+
+        if (icon is not null)
         {
-            Foreground = ColorHelpers.FromRgb(52, 211, 153),
-            Background = ColorHelpers.FromArgb(36, 16, 185, 129),
-        },
-        TagTone.Warn => new Tag(text)
-        {
-            Foreground = ColorHelpers.FromRgb(251, 191, 36),
-            Background = ColorHelpers.FromArgb(38, 245, 158, 11),
-        },
-        TagTone.Danger => new Tag(text)
-        {
-            Foreground = ColorHelpers.FromRgb(251, 113, 133),
-            Background = ColorHelpers.FromArgb(38, 244, 63, 94),
-        },
-        _ => new Tag(text),
-    };
+            tag.Icon = icon;
+        }
+
+        return tag;
+    }
 
     public static async Task<(InMemoryRandomAccessStream Stream, IconData IconData)> CreatePngIconDataAsync(byte[] pngBytes)
     {

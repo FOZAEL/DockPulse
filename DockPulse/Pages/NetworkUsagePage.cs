@@ -3,23 +3,32 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Threading.Tasks;
 using DockPulse.Commands;
+using DockPulse.Helpers;
 using DockPulse.Services;
 using Microsoft.CommandPalette.Extensions;
 using Microsoft.CommandPalette.Extensions.Toolkit;
 
 namespace DockPulse.Pages;
 
-internal sealed partial class NetworkUsagePage : ListPage
+internal sealed partial class NetworkUsagePage : ListPage, IDisposable
 {
     private readonly NetworkUsageService _service;
+    private readonly NetworkLiveService _liveService;
+    private readonly NetworkDashboardPage _dashboardPage;
     private readonly object _itemsLock = new();
+    private readonly ListItem _liveItem;
     private IListItem[] _cachedItems;
 
     public Action? OnManualRefresh { get; set; }
 
-    public NetworkUsagePage(NetworkUsageService service)
+    public NetworkUsagePage(
+        NetworkUsageService service,
+        NetworkLiveService liveService,
+        NetworkDashboardPage dashboardPage)
     {
         _service = service;
+        _liveService = liveService;
+        _dashboardPage = dashboardPage;
 
         Id = "com.dockpulse.page.network";
         Name = "Network Usage";
@@ -28,8 +37,22 @@ internal sealed partial class NetworkUsagePage : ListPage
         PlaceholderText = "Filter network adapters...";
         ShowDetails = true;
 
+        _liveItem = new ListItem(_dashboardPage)
+        {
+            Icon = new IconInfo("\uE9D9"),
+            Subtitle = "Last 60 seconds  •  updates every 2 s",
+            Tags = [DockPulseHelpers.CreateTag("Live", TagTone.Accent)],
+            MoreCommands =
+            [
+                new CommandContextItem(new ActionCommand("Refresh Now", TriggerRefresh, new IconInfo("\uE72C"))),
+                new CommandContextItem(new OpenUriCommand("Open Data Usage Settings", "ms-settings:datausage", new IconInfo("\uE774"))),
+            ],
+        };
+        UpdateLiveItem(_liveService.GetStats());
+
         _cachedItems =
         [
+            _liveItem,
             new ListItem(new ActionCommand("Refresh Now", TriggerRefresh, new IconInfo("\uE72C")))
             {
                 Title = "Loading network usage data...",
@@ -37,10 +60,13 @@ internal sealed partial class NetworkUsagePage : ListPage
                 Icon = new IconInfo("\uE774"),
             },
         ];
+
+        _liveService.Sampled += OnLiveSampled;
     }
 
     public void UpdateSnapshot(NetworkUsageSnapshot snapshot)
     {
+        _dashboardPage.UpdateSnapshot(snapshot);
         var built = BuildItems(snapshot);
         lock (_itemsLock)
         {
@@ -52,10 +78,48 @@ internal sealed partial class NetworkUsagePage : ListPage
 
     public override IListItem[] GetItems()
     {
+        _liveService.Touch();
         lock (_itemsLock)
         {
             return _cachedItems;
         }
+    }
+
+    private void OnLiveSampled()
+    {
+        UpdateLiveItem(_liveService.GetStats());
+
+        int count;
+        lock (_itemsLock)
+        {
+            count = _cachedItems.Length;
+        }
+
+        RaiseItemsChanged(count);
+    }
+
+    private void UpdateLiveItem(NetworkLiveStats live)
+    {
+        string down = NetworkLiveService.FormatBps(live.Current.DownBps);
+        string up = NetworkLiveService.FormatBps(live.Current.UpBps);
+        string peakDown = NetworkLiveService.FormatBps(live.PeakDownBps);
+        string peakUp = NetworkLiveService.FormatBps(live.PeakUpBps);
+
+        string chartUri = NetworkLiveChartRenderer.RenderLiveChartDataUri(
+            live,
+            width: NetworkLiveChartRenderer.DetailsWidth,
+            height: NetworkLiveChartRenderer.DetailsHeight);
+
+        _liveItem.Title = $"Live Speed: ↓ {down} • ↑ {up}";
+        _liveItem.Details = new Details
+        {
+            Title = "Live Speed",
+            Body =
+                $"![Live Speed]({chartUri})\n\n" +
+                $"**Download:** {down}  •  **Upload:** {up}  \n" +
+                $"**Peak (60 s):** ↓ {peakDown}  •  ↑ {peakUp}  \n" +
+                "_Sampled every 2 s while this page is open_",
+        };
     }
 
     private IListItem[] BuildItems(NetworkUsageSnapshot snapshot)
@@ -64,7 +128,7 @@ internal sealed partial class NetworkUsagePage : ListPage
         // anything wider than the pane (about 345 px at its default size), so keep them narrower than that.
         const int DetailsChartWidth = 320;
 
-        var items = new List<IListItem>();
+        var items = new List<IListItem> { _liveItem };
 
         string peakHour = NetworkUsageService.FormatPeakHour(snapshot.HourlyToday);
         string peakDay = NetworkUsageService.FormatPeakDay(snapshot.DailyMonth, snapshot.MonthStart);
@@ -98,7 +162,7 @@ internal sealed partial class NetworkUsagePage : ListPage
                 $"**Download:** {NetworkUsageService.FormatBytes(snapshot.TotalReceivedToday)}  •  " +
                 $"**Upload:** {NetworkUsageService.FormatBytes(snapshot.TotalSentToday)}  \n" +
                 $"**Peak Hour:** {peakHour}  \n" +
-                $"_Updated at {snapshot.UpdatedAt:HH:mm:ss}_",
+                $"_Updated at {snapshot.UpdatedAt.ToString("HH:mm:ss", CultureInfo.InvariantCulture)}_",
         };
 
         var monthDetails = new Details
@@ -189,7 +253,7 @@ internal sealed partial class NetworkUsagePage : ListPage
         items.Add(new ListItem(new ActionCommand("Refresh Now", TriggerRefresh, new IconInfo("\uE72C")))
         {
             Title = "Refresh Network Usage",
-            Subtitle = $"Last updated at {snapshot.UpdatedAt:HH:mm:ss}",
+            Subtitle = $"Last updated at {snapshot.UpdatedAt.ToString("HH:mm:ss", CultureInfo.InvariantCulture)}",
             Icon = new IconInfo("\uE72C"),
             Details = todayDetails,
         });
@@ -231,5 +295,10 @@ internal sealed partial class NetworkUsagePage : ListPage
         {
             IsLoading = false;
         }
+    }
+
+    public void Dispose()
+    {
+        _liveService.Sampled -= OnLiveSampled;
     }
 }

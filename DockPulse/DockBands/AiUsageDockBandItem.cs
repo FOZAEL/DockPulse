@@ -10,15 +10,25 @@ namespace DockPulse.DockBands;
 internal sealed partial class AiUsageDockBandItem : ListItem, IDisposable
 {
     private readonly AiUsageService _service;
+    private readonly AiDockSettings _dockSettings;
     private readonly AiUsagePage _page;
+    private readonly AiDockPickerPage _pickerPage;
     private readonly Timer _timer;
+    private readonly object _snapshotLock = new();
+    private AiUsageSnapshot? _lastSnapshot;
     private int _isRefreshing;
 
-    public AiUsageDockBandItem(AiUsageService service, AiUsagePage page)
+    public AiUsageDockBandItem(
+        AiUsageService service,
+        AiDockSettings dockSettings,
+        AiUsagePage page,
+        AiDockPickerPage pickerPage)
         : base(page)
     {
         _service = service;
+        _dockSettings = dockSettings;
         _page = page;
+        _pickerPage = pickerPage;
 
         Title = "AI Usage";
         Subtitle = "No data";
@@ -26,21 +36,46 @@ internal sealed partial class AiUsageDockBandItem : ListItem, IDisposable
 
         MoreCommands =
         [
+            new CommandContextItem(_pickerPage)
+            {
+                Title = "Choose Dock Provider...",
+                Icon = new IconInfo("\uE718"),
+            },
             new CommandContextItem(new ActionCommand("Refresh AI Usage", RefreshNow, new IconInfo("\uE72C"))),
             new CommandContextItem(new OpenUriCommand("Open Claude Usage", "https://claude.ai/settings/usage", new IconInfo("\uE774"))),
             new CommandContextItem(new OpenUriCommand("Open Codex Usage", "https://chatgpt.com/codex/settings/usage", new IconInfo("\uE774"))),
+            new CommandContextItem(new OpenUriCommand("Open Cursor Usage", AiDockSettings.CursorUrl, new IconInfo("\uE774"))),
         ];
 
-        // Antigravity is read in the background; redraw as soon as that read finishes
+        // Antigravity/Claude CLIs run in the background; redraw as soon as a read finishes or Dock setting changes
         _service.Updated += Refresh;
+        _dockSettings.Changed += OnDockSettingChanged;
 
         _timer = new Timer(_ => Refresh(), null, TimeSpan.Zero, TimeSpan.FromSeconds(60));
     }
 
     public void Refresh() => Refresh(forceRefresh: false);
 
-    /// <summary>Manual refresh: also re-runs `agy -p /usage` instead of waiting for its 5-minute interval.</summary>
+    /// <summary>Manual refresh: also re-runs `claude -p /usage` and `agy -p /usage` instead of waiting for their 5-minute interval.</summary>
     public void RefreshNow() => Refresh(forceRefresh: true);
+
+    private void OnDockSettingChanged()
+    {
+        AiUsageSnapshot? snapshot;
+        lock (_snapshotLock)
+        {
+            snapshot = _lastSnapshot;
+        }
+
+        if (snapshot is not null)
+        {
+            ApplyDockDisplay(snapshot);
+        }
+        else
+        {
+            Refresh(forceRefresh: false);
+        }
+    }
 
     private void Refresh(bool forceRefresh)
     {
@@ -52,23 +87,14 @@ internal sealed partial class AiUsageDockBandItem : ListItem, IDisposable
         try
         {
             var snapshot = _service.GetUsageSnapshot(forceRefresh);
-            _page.UpdateSnapshot(snapshot);
+            lock (_snapshotLock)
+            {
+                _lastSnapshot = snapshot;
+            }
 
-            if (snapshot.Tightest is null)
-            {
-                Title = "AI Usage";
-                Subtitle = "No data";
-                Icon = new IconInfo("\uE99A");
-            }
-            else
-            {
-                var tight = snapshot.Tightest;
-                Title = $"{tight.ProviderName} {tight.RemainingPercent}%";
-                Subtitle = string.Equals(tight.ResetShort, "Reset", StringComparison.Ordinal)
-                    ? $"{tight.WindowShort} • Reset"
-                    : $"{tight.WindowShort} • resets {tight.ResetShort}";
-                Icon = new IconInfo(tight.RemainingPercent == 0 ? "\uE7BA" : "\uE99A");
-            }
+            _page.UpdateSnapshot(snapshot);
+            _pickerPage.UpdateSnapshot(snapshot);
+            ApplyDockDisplay(snapshot);
         }
         catch
         {
@@ -82,9 +108,18 @@ internal sealed partial class AiUsageDockBandItem : ListItem, IDisposable
         }
     }
 
+    private void ApplyDockDisplay(AiUsageSnapshot snapshot)
+    {
+        var display = AiDockSettings.ResolveDockDisplay(snapshot, _dockSettings.DockMode, DateTimeOffset.UtcNow);
+        Title = display.Title;
+        Subtitle = display.Subtitle;
+        Icon = display.Icon;
+    }
+
     public void Dispose()
     {
         _service.Updated -= Refresh;
+        _dockSettings.Changed -= OnDockSettingChanged;
         _timer.Dispose();
     }
 }
