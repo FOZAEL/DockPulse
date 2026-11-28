@@ -7,12 +7,14 @@ namespace DockPulse.Services;
 
 /// <summary>
 /// RGBA drawing surface for the PNG cards (Calendar, Football). Shapes use anti-aliased signed distances,
-/// text uses Windows' Segoe UI through GDI, and everything is drawn at 2x for sharp results.
+/// text uses Windows' Segoe UI through GDI, drawn at 2x by default for sharp results.
 /// Coordinates passed in are 1x units.
 /// </summary>
 internal sealed class GdiCanvas
 {
-    public const int Scale = 2;
+    /// <summary>Pixels per 1x unit: 2 for sharp images shown with a max size, 1 for Markdown images,
+    /// which Command Palette shows at their real pixel size.</summary>
+    private readonly int Scale;
 
     private const string FontFamily = "Segoe UI";
 
@@ -21,8 +23,9 @@ internal sealed class GdiCanvas
     private readonly byte[] _rgba;
     private readonly float[] _cardMask;
 
-    public GdiCanvas(int width, int height)
+    public GdiCanvas(int width, int height, int scale = 2)
     {
+        Scale = Math.Clamp(scale, 1, 4);
         _w = width * Scale;
         _h = height * Scale;
         _rgba = new byte[_w * _h * 4];

@@ -15,7 +15,8 @@ public static class FootballCardRenderer
 
     public static byte[] RenderMatchPng(FootballMatch match, AiLogos.LogoBitmap? homeCrest, AiLogos.LogoBitmap? awayCrest)
     {
-        var c = new GdiCanvas(Width, Height);
+        // 1x: the details pane shows Markdown images at their real pixel size and clips anything wider
+        var c = new GdiCanvas(Width, Height, scale: 1);
         c.FillCard(10, 0x3b, 0x3b, 0x3b);
         const int cy = Height / 2;
 
