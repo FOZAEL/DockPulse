@@ -3199,7 +3199,7 @@ function drawMatchCard(cv, spec) {
    pill on today, and the two other calendars at the bottom. Year, months and dates follow the main
    calendar chosen in Calendar Settings. The year starts at x = 20, the same left edge as the buttons. */
 function drawCalendarCard(cv, cal) {
-  const w = 800, h = 230, L = 24; // wide card, scaled to the page width like CalendarRenderer
+  const w = 800, h = 244, L = 24; // wide card, scaled to the page width like CalendarRenderer
   const dpr = Math.max(1, window.devicePixelRatio || 1);
   cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr);
   cv.style.width = "100%"; cv.style.maxWidth = (w * 2) + "px"; cv.style.height = "auto";
@@ -3224,7 +3224,7 @@ function drawCalendarCard(cv, cal) {
   const names = monthNamesFor(main);
   const name = i => names[((i % 12) + 12) % 12];
   const m = midParts.month - 1;
-  const curX = L, gap = 40, baseY = 86;
+  const curX = L, gap = 40, baseY = 100; // leaves a clear gap under the year
   c.font = `700 38px ${FONT}`;
   const curW = c.measureText(name(m)).width;
   c.fillStyle = "#ffffff"; c.fillText(name(m), curX, baseY);
@@ -3247,28 +3247,28 @@ function drawCalendarCard(cv, cal) {
     const cx = L + colW * i + colW / 2;
     const isToday = d.getFullYear() === t.getFullYear() && d.getMonth() === t.getMonth() && d.getDate() === t.getDate();
     if (isToday) {
-      c.beginPath(); c.roundRect(cx - 26, 104, 52, 86, 26); c.fillStyle = "#6c7bff"; c.fill();
+      c.beginPath(); c.roundRect(cx - 26, 118, 52, 86, 26); c.fillStyle = "#6c7bff"; c.fill();
     }
     c.font = `600 13px ${FONT}`; c.fillStyle = isToday ? "rgba(255,255,255,0.85)" : "rgba(255,255,255,0.5)";
-    c.fillText(letters[i], cx, 132);
+    c.fillText(letters[i], cx, 146);
     c.font = `${isToday ? 700 : 500} 23px ${FONT}`;
     c.fillStyle = p.month - 1 === m || isToday ? "#ffffff" : "rgba(255,255,255,0.45)";
-    c.fillText(String(p.day), cx, 174);
+    c.fillText(String(p.day), cx, 188);
   }
 
   // Footer: today in the two other calendars
   const others = ["gregorian", "persian", "qamari"].filter(k => k !== main);
   c.strokeStyle = "rgba(255,255,255,0.12)"; c.lineWidth = 1;
-  c.beginPath(); c.moveTo(L, 200.5); c.lineTo(w - L, 200.5); c.stroke();
+  c.beginPath(); c.moveTo(L, 214.5); c.lineTo(w - L, 214.5); c.stroke();
   const label = k => k.toUpperCase();
   c.font = `600 11px ${FONT}`; c.fillStyle = "rgba(255,255,255,0.45)";
-  c.textAlign = "left"; c.fillText(label(others[0]), L, 221);
+  c.textAlign = "left"; c.fillText(label(others[0]), L, 235);
   const leftLabelW = c.measureText(label(others[0])).width;
-  c.textAlign = "right"; c.fillText(label(others[1]), w - L, 221);
+  c.textAlign = "right"; c.fillText(label(others[1]), w - L, 235);
   const rightLabelW = c.measureText(label(others[1])).width;
   c.font = `600 14px ${FONT}`; c.fillStyle = "#ffffff";
-  c.textAlign = "left"; c.fillText(formatIn(others[0], t), L + leftLabelW + 10, 221);
-  c.textAlign = "right"; c.fillText(formatIn(others[1], t), w - L - rightLabelW - 10, 221);
+  c.textAlign = "left"; c.fillText(formatIn(others[0], t), L + leftLabelW + 10, 235);
+  c.textAlign = "right"; c.fillText(formatIn(others[1], t), w - L - rightLabelW - 10, 235);
   c.restore();
 }
 
