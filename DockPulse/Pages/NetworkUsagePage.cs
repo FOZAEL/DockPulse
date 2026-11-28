@@ -13,21 +13,15 @@ namespace DockPulse.Pages;
 internal sealed partial class NetworkUsagePage : ListPage, IDisposable
 {
     private readonly NetworkUsageService _service;
-    private readonly NetworkLiveService _liveService;
     private readonly NetworkDashboardPage _dashboardPage;
     private readonly object _itemsLock = new();
-    private readonly ListItem _liveItem;
     private IListItem[] _cachedItems;
 
     public Action? OnManualRefresh { get; set; }
 
-    public NetworkUsagePage(
-        NetworkUsageService service,
-        NetworkLiveService liveService,
-        NetworkDashboardPage dashboardPage)
+    public NetworkUsagePage(NetworkUsageService service, NetworkDashboardPage dashboardPage)
     {
         _service = service;
-        _liveService = liveService;
         _dashboardPage = dashboardPage;
 
         Id = "com.dockpulse.page.network";
@@ -37,22 +31,8 @@ internal sealed partial class NetworkUsagePage : ListPage, IDisposable
         PlaceholderText = "Filter network adapters...";
         ShowDetails = true;
 
-        _liveItem = new ListItem(_dashboardPage)
-        {
-            Icon = new IconInfo("\uE9D9"),
-            Subtitle = "Last 60 seconds  •  updates every 2 s",
-            Tags = [DockPulseHelpers.CreateTag("Live", TagTone.Accent)],
-            MoreCommands =
-            [
-                new CommandContextItem(new ActionCommand("Refresh Now", TriggerRefresh, new IconInfo("\uE72C"))),
-                new CommandContextItem(new OpenUriCommand("Open Data Usage Settings", "ms-settings:datausage", new IconInfo("\uE774"))),
-            ],
-        };
-        UpdateLiveItem(_liveService.GetStats());
-
         _cachedItems =
         [
-            _liveItem,
             new ListItem(new ActionCommand("Refresh Now", TriggerRefresh, new IconInfo("\uE72C")))
             {
                 Title = "Loading network usage data...",
@@ -60,8 +40,6 @@ internal sealed partial class NetworkUsagePage : ListPage, IDisposable
                 Icon = new IconInfo("\uE774"),
             },
         ];
-
-        _liveService.Sampled += OnLiveSampled;
     }
 
     public void UpdateSnapshot(NetworkUsageSnapshot snapshot)
@@ -78,48 +56,10 @@ internal sealed partial class NetworkUsagePage : ListPage, IDisposable
 
     public override IListItem[] GetItems()
     {
-        _liveService.Touch();
         lock (_itemsLock)
         {
             return _cachedItems;
         }
-    }
-
-    private void OnLiveSampled()
-    {
-        UpdateLiveItem(_liveService.GetStats());
-
-        int count;
-        lock (_itemsLock)
-        {
-            count = _cachedItems.Length;
-        }
-
-        RaiseItemsChanged(count);
-    }
-
-    private void UpdateLiveItem(NetworkLiveStats live)
-    {
-        string down = NetworkLiveService.FormatBps(live.Current.DownBps);
-        string up = NetworkLiveService.FormatBps(live.Current.UpBps);
-        string peakDown = NetworkLiveService.FormatBps(live.PeakDownBps);
-        string peakUp = NetworkLiveService.FormatBps(live.PeakUpBps);
-
-        string chartUri = NetworkLiveChartRenderer.RenderLiveChartDataUri(
-            live,
-            width: NetworkLiveChartRenderer.DetailsWidth,
-            height: NetworkLiveChartRenderer.DetailsHeight);
-
-        _liveItem.Title = $"Live Speed: ↓ {down} • ↑ {up}";
-        _liveItem.Details = new Details
-        {
-            Title = "Live Speed",
-            Body =
-                $"![Live Speed]({chartUri})\n\n" +
-                $"**Download:** {down}  •  **Upload:** {up}  \n" +
-                $"**Peak (60 s):** ↓ {peakDown}  •  ↑ {peakUp}  \n" +
-                "_Sampled every 2 s while this page is open_",
-        };
     }
 
     private IListItem[] BuildItems(NetworkUsageSnapshot snapshot)
@@ -128,7 +68,7 @@ internal sealed partial class NetworkUsagePage : ListPage, IDisposable
         // anything wider than the pane (about 345 px at its default size), so keep them narrower than that.
         const int DetailsChartWidth = 320;
 
-        var items = new List<IListItem> { _liveItem };
+        var items = new List<IListItem>();
 
         string peakHour = NetworkUsageService.FormatPeakHour(snapshot.HourlyToday);
         string peakDay = NetworkUsageService.FormatPeakDay(snapshot.DailyMonth, snapshot.MonthStart);
@@ -177,7 +117,7 @@ internal sealed partial class NetworkUsagePage : ListPage, IDisposable
                 $"**Peak Day:** {peakDay}",
         };
 
-        items.Add(new ListItem(new OpenUriCommand("Open Data Usage Settings", "ms-settings:datausage", new IconInfo("\uE774")))
+        items.Add(new ListItem(OpenDashboardCommand(NetworkDashboardPage.DashboardRange.Today))
         {
             Title = $"Today (since 00:00): {NetworkUsageService.FormatBytes(snapshot.TotalToday)}",
             Subtitle = $"↓ {NetworkUsageService.FormatBytes(snapshot.TotalReceivedToday)}   •   ↑ {NetworkUsageService.FormatBytes(snapshot.TotalSentToday)}",
@@ -190,7 +130,7 @@ internal sealed partial class NetworkUsagePage : ListPage, IDisposable
             ],
         });
 
-        items.Add(new ListItem(new OpenUriCommand("Open Data Usage Settings", "ms-settings:datausage", new IconInfo("\uE774")))
+        items.Add(new ListItem(OpenDashboardCommand(NetworkDashboardPage.DashboardRange.Month))
         {
             Title = $"This Month ({monthLabel}): {NetworkUsageService.FormatBytes(snapshot.TotalMonth)}",
             Subtitle = $"↓ {NetworkUsageService.FormatBytes(snapshot.TotalReceivedMonth)}   •   ↑ {NetworkUsageService.FormatBytes(snapshot.TotalSentMonth)}",
@@ -269,6 +209,13 @@ internal sealed partial class NetworkUsagePage : ListPage, IDisposable
         return [.. items];
     }
 
+    private ActionCommand OpenDashboardCommand(NetworkDashboardPage.DashboardRange range) =>
+        new(
+            "Open Dashboard",
+            () => _dashboardPage.ShowRange(range),
+            new IconInfo("\uE9D2"),
+            result: CommandResult.GoToPage(new GoToPageArgs { PageId = _dashboardPage.Id }));
+
     private static string TruncateChartTitle(string value, int maxLen) =>
         value.Length <= maxLen ? value : value[..maxLen].TrimEnd();
 
@@ -299,6 +246,5 @@ internal sealed partial class NetworkUsagePage : ListPage, IDisposable
 
     public void Dispose()
     {
-        _liveService.Sampled -= OnLiveSampled;
     }
 }
