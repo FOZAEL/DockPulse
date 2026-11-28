@@ -11,7 +11,9 @@ public partial class DockPulseCommandsProvider : CommandProvider
 {
     private readonly WirelessBatteryService _wirelessService;
     private readonly NetworkUsageService _networkService;
-    private readonly NetworkLiveService _networkLiveService;
+    private readonly LocationService _locationService;
+    private readonly CalendarService _calendarService;
+    private readonly FootballService _footballService;
     private readonly PrayerTimesService _prayerService;
     private readonly AiUsageService _aiUsageService;
     private readonly AiDockSettings _aiDockSettings;
@@ -21,6 +23,11 @@ public partial class DockPulseCommandsProvider : CommandProvider
     private readonly WirelessDevicesPage _wirelessPage;
     private readonly NetworkDashboardPage _networkDashboardPage;
     private readonly NetworkUsagePage _networkPage;
+    private readonly LocationPage _locationPage;
+    private readonly CalendarSettingsPage _calendarSettingsPage;
+    private readonly CalendarPage _calendarPage;
+    private readonly FootballAddTeamPage _footballAddPage;
+    private readonly FootballPage _footballPage;
     private readonly PrayerRegionPickerPage _prayerRegionPage;
     private readonly PrayerMethodPickerPage _prayerMethodPage;
     private readonly PrayerTimesPage _prayerPage;
@@ -36,6 +43,9 @@ public partial class DockPulseCommandsProvider : CommandProvider
 
     private readonly WirelessBatteryDockBandItem _wirelessDockItem;
     private readonly NetworkUsageDockBandItem _networkDockItem;
+    private readonly LocationDockBandItem _locationDockItem;
+    private readonly CalendarDockBandItem _calendarDockItem;
+    private readonly FootballDockBandItem _footballDockItem;
     private readonly PrayerTimesDockBandItem _prayerDockItem;
     private readonly AiUsageDockBandItem _aiUsageDockItem;
     private readonly TodayDockBandItem _todayDockItem;
@@ -58,7 +68,9 @@ public partial class DockPulseCommandsProvider : CommandProvider
 
         _wirelessService = new WirelessBatteryService();
         _networkService = new NetworkUsageService();
-        _networkLiveService = new NetworkLiveService();
+        _locationService = new LocationService();
+        _calendarService = new CalendarService();
+        _footballService = new FootballService();
         _prayerService = new PrayerTimesService();
         _aiUsageService = new AiUsageService();
         _aiDockSettings = new AiDockSettings();
@@ -66,8 +78,13 @@ public partial class DockPulseCommandsProvider : CommandProvider
         _pomodoroService = new PomodoroService();
 
         _wirelessPage = new WirelessDevicesPage(_wirelessService);
-        _networkDashboardPage = new NetworkDashboardPage(_networkLiveService);
-        _networkPage = new NetworkUsagePage(_networkService, _networkLiveService, _networkDashboardPage);
+        _networkDashboardPage = new NetworkDashboardPage();
+        _networkPage = new NetworkUsagePage(_networkService, _networkDashboardPage);
+        _locationPage = new LocationPage(_locationService);
+        _calendarSettingsPage = new CalendarSettingsPage(_calendarService);
+        _calendarPage = new CalendarPage(_calendarService, _calendarSettingsPage);
+        _footballAddPage = new FootballAddTeamPage(_footballService);
+        _footballPage = new FootballPage(_footballService, _footballAddPage);
 
         _prayerRegionPage = new PrayerRegionPickerPage(_prayerService);
         _prayerMethodPage = new PrayerMethodPickerPage(_prayerService);
@@ -87,6 +104,9 @@ public partial class DockPulseCommandsProvider : CommandProvider
 
         _wirelessDockItem = new WirelessBatteryDockBandItem(_wirelessService, _wirelessPage);
         _networkDockItem = new NetworkUsageDockBandItem(_networkService, _networkPage);
+        _locationDockItem = new LocationDockBandItem(_locationService, _locationPage);
+        _calendarDockItem = new CalendarDockBandItem(_calendarService, _calendarPage, _calendarSettingsPage);
+        _footballDockItem = new FootballDockBandItem(_footballService, _footballPage, _footballAddPage);
         _prayerDockItem = new PrayerTimesDockBandItem(_prayerService, _prayerPage, _prayerRegionPage, _prayerMethodPage);
         _aiUsageDockItem = new AiUsageDockBandItem(_aiUsageService, _aiDockSettings, _aiUsagePage, _aiDockPickerPage);
         _todayDockItem = new TodayDockBandItem(_todayService, _todayPage, _todayAddPage, _todaySettingsPage);
@@ -118,6 +138,24 @@ public partial class DockPulseCommandsProvider : CommandProvider
                 Title = "Network Usage (Today & This Month)",
                 Subtitle = "View network data consumption and usage graphs for today (since midnight) and this month",
                 Icon = new IconInfo("\uE774"),
+            },
+            new CommandItem(_locationPage)
+            {
+                Title = "My Location (Public IP)",
+                Subtitle = "City, country and network provider of your current public IP, including when you're on a VPN",
+                Icon = new IconInfo("\uE81D"),
+            },
+            new CommandItem(_footballPage)
+            {
+                Title = "Football",
+                Subtitle = "Live scores and next matches for your teams: European leagues, MLS and Saudi Pro League",
+                Icon = new IconInfo("\uE734"),
+            },
+            new CommandItem(_calendarPage)
+            {
+                Title = "Calendar",
+                Subtitle = "Today's date, week number and a month calendar",
+                Icon = new IconInfo("\uE787"),
             },
             new CommandItem(_prayerPage)
             {
@@ -161,6 +199,18 @@ public partial class DockPulseCommandsProvider : CommandProvider
                 [_networkDockItem],
                 "com.dockpulse.band.network",
                 "Network Usage"),
+            new WrappedDockItem(
+                [_locationDockItem],
+                "com.dockpulse.band.location",
+                "My Location"),
+            new WrappedDockItem(
+                [_calendarDockItem],
+                "com.dockpulse.band.calendar",
+                "Calendar"),
+            new WrappedDockItem(
+                [_footballDockItem],
+                "com.dockpulse.band.football",
+                "Football"),
             new WrappedDockItem(
                 [_prayerDockItem],
                 "com.dockpulse.band.prayer",
@@ -211,7 +261,7 @@ public partial class DockPulseCommandsProvider : CommandProvider
             return new CommandItem(_networkDashboardPage)
             {
                 Title = "Network Dashboard",
-                Subtitle = "Live network speed, today's hourly usage, and monthly daily usage",
+                Subtitle = "Today's hourly usage and this month's daily usage",
                 Icon = new IconInfo("\uE774"),
             };
         }
@@ -233,6 +283,36 @@ public partial class DockPulseCommandsProvider : CommandProvider
                 Title = "Choose What the AI Usage Dock Shows",
                 Subtitle = "Pin a specific AI provider or show the tightest limit automatically",
                 Icon = new IconInfo("\uE718"),
+            };
+        }
+
+        if (_footballAddPage.Id == id)
+        {
+            return new CommandItem(_footballAddPage)
+            {
+                Title = "Add Football Team",
+                Subtitle = "European leagues, MLS and Saudi Pro League",
+                Icon = new IconInfo("\uE710"),
+            };
+        }
+
+        if (_calendarPage.Id == id)
+        {
+            return new CommandItem(_calendarPage)
+            {
+                Title = "Calendar",
+                Subtitle = "Today's date, week number and a month calendar",
+                Icon = new IconInfo("\uE787"),
+            };
+        }
+
+        if (_calendarSettingsPage.Id == id)
+        {
+            return new CommandItem(_calendarSettingsPage)
+            {
+                Title = "Calendar Settings",
+                Subtitle = "Main calendar, Persian month names and Qamari date",
+                Icon = new IconInfo("\uE713"),
             };
         }
 
@@ -315,7 +395,17 @@ public partial class DockPulseCommandsProvider : CommandProvider
         _networkDockItem.Dispose();
         _networkPage.Dispose();
         _networkDashboardPage.Dispose();
-        _networkLiveService.Dispose();
+        _locationDockItem.Dispose();
+        _calendarDockItem.Dispose();
+        _footballDockItem.Dispose();
+        _footballPage.Dispose();
+        _footballAddPage.Dispose();
+        _footballService.Dispose();
+        _calendarPage.Dispose();
+        _calendarSettingsPage.Dispose();
+        _calendarService.Dispose();
+        _locationPage.Dispose();
+        _locationService.Dispose();
         _prayerDockItem.Dispose();
         _aiUsageDockItem.Dispose();
         _aiUsagePage.Dispose();

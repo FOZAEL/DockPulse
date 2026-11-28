@@ -15,17 +15,18 @@ namespace DockPulse.Pages;
 
 internal sealed partial class NetworkDashboardPage : ContentPage, IDisposable
 {
-    private enum DashboardRange
+    internal enum DashboardRange
     {
-        Live,
         Today,
         Month,
     }
 
-    private readonly NetworkLiveService _liveService;
+    private const int ChartWidth = 480;
+    private const int ChartHeight = 250;
+
     private readonly object _stateLock = new();
 
-    private DashboardRange _range = DashboardRange.Live;
+    private DashboardRange _range = DashboardRange.Today;
     private NetworkUsageSnapshot? _lastSnapshot;
     private IContent[] _cachedContent;
     private List<InMemoryRandomAccessStream> _activeStreams = [];
@@ -35,21 +36,15 @@ internal sealed partial class NetworkDashboardPage : ContentPage, IDisposable
 
     public Action? OnManualRefresh { get; set; }
 
-    public NetworkDashboardPage(NetworkLiveService liveService)
+    public NetworkDashboardPage()
     {
-        _liveService = liveService;
-
         Id = "com.dockpulse.page.network.dashboard";
         Name = "Network Dashboard";
-        Title = FormatTitle(DashboardRange.Live);
+        Title = FormatTitle(DashboardRange.Today);
         Icon = new IconInfo("\uE774");
 
         Commands =
         [
-            new CommandContextItem(new ActionCommand(
-                "Show Live Speed",
-                () => SetRange(DashboardRange.Live),
-                new IconInfo("\uE9D9"))),
             new CommandContextItem(new ActionCommand(
                 "Show Today",
                 () => SetRange(DashboardRange.Today),
@@ -68,24 +63,11 @@ internal sealed partial class NetworkDashboardPage : ContentPage, IDisposable
                 new IconInfo("\uE713"))),
         ];
 
-        var initialLive = _liveService.GetStats();
-        string initialUri = NetworkLiveChartRenderer.RenderLiveChartDataUri(
-            initialLive,
-            NetworkLiveChartRenderer.DashboardWidth,
-            NetworkLiveChartRenderer.DashboardHeight);
-        _cachedContent = BuildContentArray(
-            new MarkdownContent($"![Live Network Speed]({initialUri})"),
-            DashboardRange.Live,
-            initialLive,
-            null);
-
-        _liveService.Sampled += OnLiveSampled;
-        RequestRefresh();
+        _cachedContent = BuildLoadingContent(DashboardRange.Today);
     }
 
     public override IContent[] GetContent()
     {
-        _liveService.Touch();
         lock (_stateLock)
         {
             return _cachedContent;
@@ -94,32 +76,16 @@ internal sealed partial class NetworkDashboardPage : ContentPage, IDisposable
 
     public void UpdateSnapshot(NetworkUsageSnapshot snapshot)
     {
-        bool shouldRefresh;
         lock (_stateLock)
         {
             _lastSnapshot = snapshot;
-            shouldRefresh = _range != DashboardRange.Live;
         }
 
-        if (shouldRefresh)
-        {
-            RequestRefresh();
-        }
+        RequestRefresh();
     }
 
-    private void OnLiveSampled()
-    {
-        bool isLive;
-        lock (_stateLock)
-        {
-            isLive = _range == DashboardRange.Live;
-        }
-
-        if (isLive)
-        {
-            RequestRefresh();
-        }
-    }
+    /// <summary>Shows the given range; the Today and This Month rows call this before opening the page.</summary>
+    public void ShowRange(DashboardRange range) => SetRange(range);
 
     private void SetRange(DashboardRange range)
     {
@@ -130,11 +96,6 @@ internal sealed partial class NetworkDashboardPage : ContentPage, IDisposable
             _range = range;
         }
 
-        if (range == DashboardRange.Live)
-        {
-            _liveService.Touch();
-        }
-
         if (changed)
         {
             RequestRefresh();
@@ -143,21 +104,7 @@ internal sealed partial class NetworkDashboardPage : ContentPage, IDisposable
 
     private void TriggerRefresh()
     {
-        DashboardRange current;
-        lock (_stateLock)
-        {
-            current = _range;
-        }
-
-        if (current == DashboardRange.Live)
-        {
-            _liveService.SampleNow();
-        }
-        else
-        {
-            OnManualRefresh?.Invoke();
-        }
-
+        OnManualRefresh?.Invoke();
         DockPulseHelpers.ShowInlineToast("Network usage refreshed");
     }
 
@@ -199,17 +146,29 @@ internal sealed partial class NetworkDashboardPage : ContentPage, IDisposable
             snap = _lastSnapshot;
         }
 
-        var live = _liveService.GetStats();
-        byte[] png = RenderChartPng(range, live, snap);
+        if (snap is null)
+        {
+            var loading = BuildLoadingContent(range);
+            lock (_stateLock)
+            {
+                _cachedContent = loading;
+            }
+
+            Title = FormatTitle(range);
+            RaiseItemsChanged(loading.Length);
+            return;
+        }
+
+        byte[] png = RenderChartPng(range, snap);
         var (stream, iconData) = await DockPulseHelpers.CreatePngIconDataAsync(png).ConfigureAwait(false);
 
         var chartImage = new ImageContent(new IconInfo(iconData, iconData))
         {
-            MaxWidth = NetworkLiveChartRenderer.DashboardWidth,
-            MaxHeight = NetworkLiveChartRenderer.DashboardHeight,
+            MaxWidth = ChartWidth,
+            MaxHeight = ChartHeight,
         };
 
-        var nextContent = BuildContentArray(chartImage, range, live, snap);
+        var nextContent = BuildContentArray(chartImage, range, snap);
 
         List<InMemoryRandomAccessStream> toDispose;
         lock (_stateLock)
@@ -226,9 +185,9 @@ internal sealed partial class NetworkDashboardPage : ContentPage, IDisposable
         RaiseItemsChanged(nextContent.Length);
     }
 
-    private static byte[] RenderChartPng(DashboardRange range, NetworkLiveStats live, NetworkUsageSnapshot? snap)
+    private static byte[] RenderChartPng(DashboardRange range, NetworkUsageSnapshot snap)
     {
-        if (range == DashboardRange.Today && snap is not null)
+        if (range == DashboardRange.Today)
         {
             string peakHour = NetworkUsageService.FormatPeakHour(snap.HourlyToday);
             return NetworkChartRenderer.RenderBarChartPng(
@@ -237,11 +196,10 @@ internal sealed partial class NetworkDashboardPage : ContentPage, IDisposable
                 buckets: snap.HourlyToday,
                 activeBucketIndex: snap.CurrentHour,
                 isDarkTheme: true,
-                width: NetworkLiveChartRenderer.DashboardWidth,
-                height: NetworkLiveChartRenderer.DashboardHeight);
+                width: ChartWidth,
+                height: ChartHeight);
         }
 
-        if (range == DashboardRange.Month && snap is not null)
         {
             string monthLabel = snap.MonthStart.ToString("MMM yyyy", CultureInfo.InvariantCulture);
             string peakDay = NetworkUsageService.FormatPeakDay(snap.DailyMonth, snap.MonthStart);
@@ -252,64 +210,36 @@ internal sealed partial class NetworkDashboardPage : ContentPage, IDisposable
                 buckets: snap.DailyMonth,
                 activeBucketIndex: snap.CurrentDay - 1,
                 isDarkTheme: true,
-                width: NetworkLiveChartRenderer.DashboardWidth,
-                height: NetworkLiveChartRenderer.DashboardHeight);
+                width: ChartWidth,
+                height: ChartHeight);
         }
-
-        return NetworkLiveChartRenderer.RenderLiveChartPng(
-            live,
-            width: NetworkLiveChartRenderer.DashboardWidth,
-            height: NetworkLiveChartRenderer.DashboardHeight);
     }
 
     private IContent[] BuildContentArray(
         IContent chartVisual,
         DashboardRange range,
-        NetworkLiveStats live,
-        NetworkUsageSnapshot? snap)
+        NetworkUsageSnapshot snap)
     {
         string md;
         if (range == DashboardRange.Today)
         {
-            if (snap is null)
-            {
-                md = "_Loading network usage data..._";
-            }
-            else
-            {
-                string peakHour = NetworkUsageService.FormatPeakHour(snap.HourlyToday);
-                md =
-                    $"**Total:** {NetworkUsageService.FormatBytes(snap.TotalToday)}  \n" +
-                    $"**Download:** {NetworkUsageService.FormatBytes(snap.TotalReceivedToday)}  •  " +
-                    $"**Upload:** {NetworkUsageService.FormatBytes(snap.TotalSentToday)}  \n" +
-                    $"**Peak Hour:** {peakHour}  \n" +
-                    $"_Updated at {snap.UpdatedAt.ToString("HH:mm:ss", CultureInfo.InvariantCulture)}_";
-            }
-        }
-        else if (range == DashboardRange.Month)
-        {
-            if (snap is null)
-            {
-                md = "_Loading network usage data..._";
-            }
-            else
-            {
-                string peakDay = NetworkUsageService.FormatPeakDay(snap.DailyMonth, snap.MonthStart);
-                ulong avg = snap.TotalMonth / (ulong)Math.Max(1, snap.CurrentDay);
-                md =
-                    $"**Total:** {NetworkUsageService.FormatBytes(snap.TotalMonth)}  \n" +
-                    $"**Download:** {NetworkUsageService.FormatBytes(snap.TotalReceivedMonth)}  •  " +
-                    $"**Upload:** {NetworkUsageService.FormatBytes(snap.TotalSentMonth)}  \n" +
-                    $"**Daily Average:** {NetworkUsageService.FormatBytes(avg)}  •  **Peak Day:** {peakDay}";
-            }
+            string peakHour = NetworkUsageService.FormatPeakHour(snap.HourlyToday);
+            md =
+                $"**Total:** {NetworkUsageService.FormatBytes(snap.TotalToday)}  \n" +
+                $"**Download:** {NetworkUsageService.FormatBytes(snap.TotalReceivedToday)}  •  " +
+                $"**Upload:** {NetworkUsageService.FormatBytes(snap.TotalSentToday)}  \n" +
+                $"**Peak Hour:** {peakHour}  \n" +
+                $"_Updated at {snap.UpdatedAt.ToString("HH:mm:ss", CultureInfo.InvariantCulture)}_";
         }
         else
         {
+            string peakDay = NetworkUsageService.FormatPeakDay(snap.DailyMonth, snap.MonthStart);
+            ulong avg = snap.TotalMonth / (ulong)Math.Max(1, snap.CurrentDay);
             md =
-                $"**Current:** ↓ {NetworkLiveService.FormatBps(live.Current.DownBps)}  •  ↑ {NetworkLiveService.FormatBps(live.Current.UpBps)}  \n" +
-                $"**Peak (60 s):** ↓ {NetworkLiveService.FormatBps(live.PeakDownBps)}  •  ↑ {NetworkLiveService.FormatBps(live.PeakUpBps)}  \n" +
-                $"**Average (60 s):** ↓ {NetworkLiveService.FormatBps(live.AvgDownBps)}  •  ↑ {NetworkLiveService.FormatBps(live.AvgUpBps)}  \n" +
-                "_Sampled every 2 s while this page is open_";
+                $"**Total:** {NetworkUsageService.FormatBytes(snap.TotalMonth)}  \n" +
+                $"**Download:** {NetworkUsageService.FormatBytes(snap.TotalReceivedMonth)}  •  " +
+                $"**Upload:** {NetworkUsageService.FormatBytes(snap.TotalSentMonth)}  \n" +
+                $"**Daily Average:** {NetworkUsageService.FormatBytes(avg)}  •  **Peak Day:** {peakDay}";
         }
 
         return
@@ -320,13 +250,15 @@ internal sealed partial class NetworkDashboardPage : ContentPage, IDisposable
         ];
     }
 
+    private IContent[] BuildLoadingContent(DashboardRange range) =>
+    [
+        new MarkdownContent("_Loading network usage data..._"),
+        new NetworkDashboardControlsForm(range, HandleAction),
+    ];
+
     private CommandResult HandleAction(string actionId)
     {
-        if (string.Equals(actionId, "live", StringComparison.OrdinalIgnoreCase))
-        {
-            SetRange(DashboardRange.Live);
-        }
-        else if (string.Equals(actionId, "today", StringComparison.OrdinalIgnoreCase))
+        if (string.Equals(actionId, "today", StringComparison.OrdinalIgnoreCase))
         {
             SetRange(DashboardRange.Today);
         }
@@ -346,13 +278,11 @@ internal sealed partial class NetworkDashboardPage : ContentPage, IDisposable
     {
         DashboardRange.Today => "Network Dashboard  •  Today",
         DashboardRange.Month => "Network Dashboard  •  Month",
-        _ => "Network Dashboard  •  Live",
+        _ => "Network Dashboard  •  Today",
     };
 
     public void Dispose()
     {
-        _liveService.Sampled -= OnLiveSampled;
-
         List<InMemoryRandomAccessStream> active;
         List<InMemoryRandomAccessStream> retiring;
         lock (_stateLock)
@@ -374,7 +304,6 @@ internal sealed partial class NetworkDashboardPage : ContentPage, IDisposable
         public NetworkDashboardControlsForm(DashboardRange activeRange, Func<string, CommandResult> onAction)
         {
             _onAction = onAction;
-            string liveStyle = activeRange == DashboardRange.Live ? ",\n                        \"style\": \"positive\"" : string.Empty;
             string todayStyle = activeRange == DashboardRange.Today ? ",\n                        \"style\": \"positive\"" : string.Empty;
             string monthStyle = activeRange == DashboardRange.Month ? ",\n                        \"style\": \"positive\"" : string.Empty;
 
@@ -385,11 +314,6 @@ internal sealed partial class NetworkDashboardPage : ContentPage, IDisposable
                 "version": "1.5",
                 "body": [],
                 "actions": [
-                    {
-                        "type": "Action.Submit",
-                        "title": "Live",
-                        "data": { "action": "live" }{{liveStyle}}
-                    },
                     {
                         "type": "Action.Submit",
                         "title": "Today",

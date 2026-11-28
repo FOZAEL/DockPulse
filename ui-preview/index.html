@@ -232,6 +232,9 @@
   .form-toggle { display: flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer; }
   .form-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
   .form-card.compact .form-actions { justify-content: center; }
+  /* Calendar: buttons start at the same left edge as the year inside the card (20 px) */
+  .form-card.compact.start { padding-left: 19px; }
+  .form-card.compact.start .form-actions { justify-content: flex-start; }
   .form-btn {
     display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--stroke-strong);
     background: var(--tag-bg); color: var(--text); border-radius: 6px; padding: 6px 12px;
@@ -325,7 +328,14 @@
     <label>Scenario
       <select id="scenario">
         <option value="normal">Normal</option>
-        <option value="net_live">Network: live dashboard</option>
+        <option value="net_dashboard">Network: dashboard (this month)</option>
+        <option value="football_live">Football: Man United playing (67')</option>
+        <option value="football_ft">Football: full time</option>
+        <option value="football_none">Football: no teams yet</option>
+        <option value="cal_persian">Calendar: Persian main (Hamal names)</option>
+        <option value="cal_qamari">Calendar: Qamari main</option>
+        <option value="loc_vpn">Location: on a VPN (Frankfurt)</option>
+        <option value="loc_offline">Location: offline</option>
         <option value="ai_compare">AI Usage: compare dashboard</option>
         <option value="ai_dock_antigravity">AI Usage: Dock shows Antigravity</option>
         <option value="ai_limit">AI Usage: Claude 0% (limit reached)</option>
@@ -483,6 +493,11 @@ const logo = id => ({ logo: id });
 let logoUid = 0;
 function iconHtml(icon) {
   if (!icon) return "";
+  if (typeof icon === "object" && icon.crest) {
+    const t = FOOTBALL_TEAMS[icon.crest];
+    if (!t) return "";
+    return `<svg aria-hidden="true" viewBox="0 0 20 20" width="1em" height="1em"><circle cx="10" cy="10" r="9" fill="${t.bg}" stroke="rgba(255,255,255,.85)" stroke-width="1"/><text x="10" y="10.5" text-anchor="middle" dominant-baseline="middle" font-family="Segoe UI, sans-serif" font-weight="800" font-size="${t.abbr.length > 3 ? 4.6 : 5.6}" fill="${t.fg}">${t.abbr}</text></svg>`;
+  }
   if (typeof icon === "object" && icon.logo) {
     const raw = AI_LOGOS[icon.logo];
     if (!raw) return "";
@@ -649,6 +664,122 @@ function initNetLive(zero) {
   return { samples, next };
 }
 
+/* Location band (public IP lookup). Documentation-range IPs only. */
+const LOCATION_SCENARIOS = {
+  normal: {
+    ip: "203.0.113.42", city: "Kabul", region: "Kabul", country: "Afghanistan", cc: "AF",
+    isp: "Example Telecom", asn: "AS64500", tz: "Asia/Kabul", utc: "UTC+04:30",
+    lat: 34.5553, lon: 69.2075, adapter: "Wi-Fi", adapterIcon: "", localIp: "192.168.1.23", vpn: false, checkedAt: "14:09",
+  },
+  loc_vpn: {
+    ip: "198.51.100.7", city: "Frankfurt am Main", region: "Hesse", country: "Germany", cc: "DE",
+    isp: "Example VPN GmbH", asn: "AS64511", tz: "Europe/Berlin", utc: "UTC+01:00",
+    lat: 50.1109, lon: 8.6821, adapter: "WireGuard Tunnel", adapterIcon: "", localIp: "10.8.0.2", vpn: true, checkedAt: "14:10",
+  },
+  loc_offline: null,
+};
+function resolveLocation() {
+  return state.scenario in LOCATION_SCENARIOS ? LOCATION_SCENARIOS[state.scenario] : LOCATION_SCENARIOS.normal;
+}
+
+/* Football band (Services/FootballService.cs). Scores come from ESPN's public scoreboard in the app.
+   The preview draws crest stand-ins (initials on club colours); the app shows the real crests. */
+const FOOTBALL_LEAGUES = [
+  { id: "eng.1", name: "Premier League" },
+  { id: "esp.1", name: "LaLiga" },
+  { id: "ita.1", name: "Serie A" },
+  { id: "ger.1", name: "Bundesliga" },
+  { id: "fra.1", name: "Ligue 1" },
+  { id: "usa.1", name: "MLS" },
+  { id: "ksa.1", name: "Saudi Pro League" },
+];
+const FOOTBALL_TEAMS = {
+  "man-united": { name: "Manchester United", short: "Man United", abbr: "MUN", bg: "#da291c", fg: "#ffe500", league: "eng.1" },
+  "man-city": { name: "Manchester City", short: "Man City", abbr: "MCI", bg: "#6cabdd", fg: "#ffffff", league: "eng.1" },
+  "liverpool": { name: "Liverpool", short: "Liverpool", abbr: "LIV", bg: "#c8102e", fg: "#ffffff", league: "eng.1" },
+  "arsenal": { name: "Arsenal", short: "Arsenal", abbr: "ARS", bg: "#ef0107", fg: "#ffffff", league: "eng.1" },
+  "chelsea": { name: "Chelsea", short: "Chelsea", abbr: "CHE", bg: "#034694", fg: "#ffffff", league: "eng.1" },
+  "brentford": { name: "Brentford", short: "Brentford", abbr: "BRE", bg: "#e30613", fg: "#ffffff", league: "eng.1" },
+  "nottm-forest": { name: "Nottingham Forest", short: "Nottm Forest", abbr: "NFO", bg: "#dd0000", fg: "#ffffff", league: "eng.1" },
+  "everton": { name: "Everton", short: "Everton", abbr: "EVE", bg: "#003399", fg: "#ffffff", league: "eng.1" },
+  "real-madrid": { name: "Real Madrid", short: "Real Madrid", abbr: "RMA", bg: "#febe10", fg: "#00529f", league: "esp.1" },
+  "barcelona": { name: "Barcelona", short: "Barcelona", abbr: "BAR", bg: "#a50044", fg: "#edbb00", league: "esp.1" },
+  "atletico": { name: "Atlético Madrid", short: "Atlético", abbr: "ATM", bg: "#cb3524", fg: "#ffffff", league: "esp.1" },
+  "inter": { name: "Internazionale", short: "Inter", abbr: "INT", bg: "#0068a8", fg: "#000000", league: "ita.1" },
+  "milan": { name: "AC Milan", short: "AC Milan", abbr: "MIL", bg: "#fb090b", fg: "#000000", league: "ita.1" },
+  "juventus": { name: "Juventus", short: "Juventus", abbr: "JUV", bg: "#000000", fg: "#ffffff", league: "ita.1" },
+  "bayern": { name: "Bayern Munich", short: "Bayern", abbr: "BAY", bg: "#dc052d", fg: "#ffffff", league: "ger.1" },
+  "dortmund": { name: "Borussia Dortmund", short: "Dortmund", abbr: "BVB", bg: "#fde100", fg: "#000000", league: "ger.1" },
+  "psg": { name: "Paris Saint-Germain", short: "PSG", abbr: "PSG", bg: "#004170", fg: "#da291c", league: "fra.1" },
+  "marseille": { name: "Marseille", short: "Marseille", abbr: "OM", bg: "#2faee0", fg: "#ffffff", league: "fra.1" },
+  "inter-miami": { name: "Inter Miami CF", short: "Inter Miami", abbr: "MIA", bg: "#f7b5cd", fg: "#231f20", league: "usa.1" },
+  "la-galaxy": { name: "LA Galaxy", short: "LA Galaxy", abbr: "LA", bg: "#00245d", fg: "#ffd200", league: "usa.1" },
+  "lafc": { name: "LAFC", short: "LAFC", abbr: "LAFC", bg: "#000000", fg: "#c39e6d", league: "usa.1" },
+  "nycfc": { name: "New York City FC", short: "NYCFC", abbr: "NYC", bg: "#6cace4", fg: "#041e42", league: "usa.1" },
+  "al-nassr": { name: "Al Nassr", short: "Al Nassr", abbr: "NAS", bg: "#fcd116", fg: "#00338d", league: "ksa.1" },
+  "al-hilal": { name: "Al Hilal", short: "Al Hilal", abbr: "HIL", bg: "#005baa", fg: "#ffffff", league: "ksa.1" },
+  "al-ittihad": { name: "Al Ittihad", short: "Al Ittihad", abbr: "ITT", bg: "#ffd500", fg: "#000000", league: "ksa.1" },
+  "al-ahli": { name: "Al Ahli", short: "Al Ahli", abbr: "AHL", bg: "#007a3d", fg: "#ffffff", league: "ksa.1" },
+  "al-hazem": { name: "Al Hazem", short: "Al Hazem", abbr: "HAZ", bg: "#e30613", fg: "#ffffff", league: "ksa.1" },
+};
+const FOOTBALL_STARS = [
+  { player: "Cristiano Ronaldo", team: "al-nassr" },
+  { player: "Lionel Messi", team: "inter-miami" },
+];
+const leagueName = id => (FOOTBALL_LEAGUES.find(l => l.id === id) || { name: "Champions League" }).name;
+const at = (dayOffset, hhmm) => { const [h, m] = hhmm.split(":").map(Number); const d = new Date(MOCK_DATE.year, MOCK_DATE.month, MOCK_DATE.day + dayOffset); d.setHours(h, m, 0, 0); return d; };
+
+// Matches of the mock user's teams; the scenario changes today's match
+function footballMatches() {
+  const s = state.scenario;
+  const todayMatch = s === "football_live"
+    ? { id: "m1", home: "man-united", away: "brentford", league: "eng.1", kickoff: at(0, "12:30"), state: "in", minute: 67, hs: 1, as: 2 }
+    : s === "football_ft"
+      ? { id: "m1", home: "man-united", away: "brentford", league: "eng.1", kickoff: at(0, "11:30"), state: "post", hs: 3, as: 2 }
+      : { id: "m1", home: "man-united", away: "brentford", league: "eng.1", kickoff: at(0, "19:30"), state: "pre" };
+  return [
+    todayMatch,
+    { id: "m2", home: "al-hazem", away: "al-nassr", league: "ksa.1", kickoff: at(1, "15:15"), state: "pre" },
+    { id: "m3", home: "inter-miami", away: "nycfc", league: "usa.1", kickoff: at(3, "02:30"), state: "pre" },
+    { id: "r1", home: "al-nassr", away: "al-ittihad", league: "ksa.1", kickoff: at(-2, "18:00"), state: "post", hs: 3, as: 0 },
+    { id: "r2", home: "everton", away: "man-united", league: "eng.1", kickoff: at(-7, "16:00"), state: "post", hs: 1, as: 2 },
+    { id: "r3", home: "inter-miami", away: "la-galaxy", league: "usa.1", kickoff: at(-4, "03:00"), state: "post", hs: 1, as: 1 },
+  ].filter(m => state.football.teams.includes(m.home) || state.football.teams.includes(m.away));
+}
+function myTeamIn(m) { return state.football.teams.includes(m.home) ? m.home : m.away; }
+function matchWhen(m) {
+  const now = nowDate();
+  const k = m.kickoff;
+  const dayDiff = Math.round((new Date(k.getFullYear(), k.getMonth(), k.getDate()) - new Date(now.getFullYear(), now.getMonth(), now.getDate())) / 86400000);
+  const time = `${String(k.getHours()).padStart(2, "0")}:${String(k.getMinutes()).padStart(2, "0")}`;
+  if (dayDiff === 0) return `Today ${time}`;
+  if (dayDiff === 1) return `Tomorrow ${time}`;
+  if (dayDiff === -1) return `Yesterday`;
+  if (dayDiff > 1 && dayDiff < 7) return `${WEEKDAYS_SHORT[k.getDay()]} ${time}`;
+  return `${WEEKDAYS_SHORT[k.getDay()]} ${k.getDate()} ${MONTHS[k.getMonth()].slice(0, 3)}`;
+}
+function matchScore(m) { return `${m.hs} – ${m.as}`; }
+function matchTitle(m) {
+  const h = FOOTBALL_TEAMS[m.home].short, a = FOOTBALL_TEAMS[m.away].short;
+  return m.state === "pre" ? `${h} vs ${a}` : `${h} ${m.hs}–${m.as} ${a}`;
+}
+function matchTag(m) {
+  if (m.state === "in") return { text: `LIVE ${m.minute}'`, tone: "ok" };
+  if (m.state === "post") return { text: "FT", tone: "default" };
+  return matchWhen(m);
+}
+// What the Dock shows: a live match first, then a result from the last 12 hours, then the next match
+function dockMatch() {
+  const ms = footballMatches();
+  const now = nowDate();
+  const live = ms.find(m => m.state === "in");
+  if (live) return live;
+  const recent = ms.filter(m => m.state === "post" && now - m.kickoff < 14 * 3600000).sort((a, b) => b.kickoff - a.kickoff)[0];
+  if (recent) return recent;
+  return ms.filter(m => m.state === "pre").sort((a, b) => a.kickoff - b.kickoff)[0] || null;
+}
+const crestIcon = id => ({ crest: id });
+
 /* =====================================================================
    App state
    ===================================================================== */
@@ -656,7 +787,7 @@ const state = {
   theme: "auto",
   scenario: "normal",
   clock: T("14:11"),
-  netRange: "live",
+  netRange: "today",
   netLive: initNetLive(false),
   aiWindow: "5h",
   aiDock: "auto", // "auto" | "claude" | "antigravity" | "codex" (saved to aiusage.cfg, e.g. dock=claude)
@@ -664,6 +795,9 @@ const state = {
   prayer: { regionId: "kabul", methodId: "karachi", asr: "Hanafi", notifications: true },
   wireless: { pinnedId: "mouse-pro-x2", pinnedName: "PRO X2 SUPERSTRIKE" },
   workFolder: { path: "C:\\Dev\\DockPulse" },
+  football: { teams: ["man-united", "al-nassr", "inter-miami"] }, // saved to football.cfg (ESPN team ids in the app)
+  calendarOffset: 0, // weeks away from this week on the Calendar page
+  calendar: { main: "gregorian", persianNames: "afghan", qamariAdjust: 0 }, // saved to calendar.cfg: main=gregorian|persian|qamari, persian=afghan|iranian, qamari=-1|0|1
   today: {
     nextId: 6,
     water: 3,
@@ -705,6 +839,57 @@ const state = {
   filter: "",
   sel: 0,
 };
+
+/* Calendar band helpers (Services/CalendarService.cs). Week numbers are ISO 8601; weeks start on Monday
+   in the preview, and on Windows' "first day of week" setting in the C#. */
+const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+const WEEKDAYS_SHORT = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const WEEKDAYS_LONG = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+function isoWeek(d) {
+  const t = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+  const dow = t.getUTCDay() || 7;
+  t.setUTCDate(t.getUTCDate() + 4 - dow);
+  const y0 = new Date(Date.UTC(t.getUTCFullYear(), 0, 1));
+  return Math.ceil(((t - y0) / 86400000 + 1) / 7);
+}
+function dayOfYear(d) { return Math.round((new Date(d.getFullYear(), d.getMonth(), d.getDate()) - new Date(d.getFullYear(), 0, 1)) / 86400000) + 1; }
+function daysInYear(y) { return (y % 4 === 0 && y % 100 !== 0) || y % 400 === 0 ? 366 : 365; }
+function isoDate(d) { return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; }
+function longDate(d) { return `${WEEKDAYS_LONG[d.getDay()]}, ${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear()}`; }
+
+/* Persian (Solar Hijri) and Qamari (Lunar Hijri, Umm al-Qura) dates: PersianCalendar / UmAlQuraCalendar in C# */
+const PERSIAN_MONTHS = {
+  afghan: ["Hamal", "Sawr", "Jawza", "Saratan", "Asad", "Sonbola", "Mizan", "Aqrab", "Qaws", "Jadi", "Dalw", "Hut"],
+  iranian: ["Farvardin", "Ordibehesht", "Khordad", "Tir", "Mordad", "Shahrivar", "Mehr", "Aban", "Azar", "Dey", "Bahman", "Esfand"],
+};
+const QAMARI_MONTHS = ["Muharram", "Safar", "Rabi al-Awwal", "Rabi al-Thani", "Jumada al-Ula", "Jumada al-Akhirah", "Rajab", "Shaban", "Ramadan", "Shawwal", "Dhu al-Qadah", "Dhu al-Hijjah"];
+function calendarParts(d, calendar) {
+  const parts = new Intl.DateTimeFormat(`en-u-ca-${calendar}-nu-latn`, { day: "numeric", month: "numeric", year: "numeric" }).formatToParts(d);
+  const get = t => parseInt(parts.find(p => p.type === t).value, 10);
+  return { day: get("day"), month: get("month"), year: get("year") };
+}
+function persianDate(d) { return calendarParts(d, "persian"); }
+function qamariDate(d) {
+  const shifted = new Date(d.getFullYear(), d.getMonth(), d.getDate() + state.calendar.qamariAdjust);
+  return calendarParts(shifted, "islamic-umalqura");
+}
+function formatPersian(d) { const p = persianDate(d); return `${p.day} ${PERSIAN_MONTHS[state.calendar.persianNames][p.month - 1]} ${p.year}`; }
+function formatQamari(d) { const q = qamariDate(d); return `${q.day} ${QAMARI_MONTHS[q.month - 1]} ${q.year}`; }
+function datePartsIn(kind, d) {
+  if (kind === "persian") return persianDate(d);
+  if (kind === "qamari") return qamariDate(d);
+  return { day: d.getDate(), month: d.getMonth() + 1, year: d.getFullYear() };
+}
+function monthNamesFor(kind) {
+  if (kind === "persian") return PERSIAN_MONTHS[state.calendar.persianNames];
+  if (kind === "qamari") return QAMARI_MONTHS;
+  return MONTHS;
+}
+function formatIn(kind, d) {
+  const p = datePartsIn(kind, d);
+  return `${p.day} ${monthNamesFor(kind)[p.month - 1]} ${p.year}`;
+}
+const CALENDAR_LABELS = { gregorian: "Gregorian", persian: "Persian (Solar Hijri)", qamari: "Qamari (Lunar Hijri)" };
 
 function nowDate() {
   return new Date(MOCK_DATE.year, MOCK_DATE.month, MOCK_DATE.day, Math.floor(state.clock / 60), state.clock % 60, 0);
@@ -1039,7 +1224,10 @@ const PAGES = {
       items: [
         { icon: "", title: "Wireless Device Batteries", subtitle: "View battery levels of Bluetooth, BLE, AirPods, Logitech LIGHTSPEED/Bolt/Unifying, and Xbox devices", tags: ["DockPulse"], cmd: { name: "Wireless Devices", ...go("wireless") } },
         { icon: "", title: "Network Usage (Today & This Month)", subtitle: "View network data consumption and usage graphs for today (since midnight) and this month", tags: ["DockPulse"], cmd: { name: "Network Usage", ...go("network") } },
+        { icon: "", title: "My Location (Public IP)", subtitle: "City, country and network provider of your current public IP, including when you're on a VPN", tags: ["DockPulse"], cmd: { name: "My Location", ...go("location") } },
         { icon: "", title: "Prayer Times", subtitle: "Countdown to next prayer time with selectable regions, calculation methods, and notifications", tags: ["DockPulse"], cmd: { name: "Prayer Times", ...go("prayer") } },
+        { icon: "\uE734", title: "Football", subtitle: "Live scores and next matches for your teams: European leagues, MLS and Saudi Pro League", tags: ["DockPulse"], cmd: { name: "Football", ...go("football") } },
+        { icon: "\uE787", title: "Calendar", subtitle: "Today's date, week number and a month calendar", tags: ["DockPulse"], cmd: { name: "Calendar", ...go("calendar") } },
         { icon: "\uE99A", title: "AI Usage Limits", subtitle: "5-hour session and weekly remaining limits for Claude, Antigravity, and Codex", tags: ["DockPulse"], cmd: { name: "AI Usage", ...go("aiUsage") } },
         { icon: "\uE9D5", title: "Today — Daily Checklist", subtitle: "Daily habits, water counter, coffee reminder, and midnight-resetting tasks", tags: ["DockPulse"], cmd: { name: "Today", ...go("today") } },
         { icon: "\uE916", title: "Pomodoro Timer", subtitle: "Focus timer ring, breaks, session stats, and quick Dock controls", tags: ["DockPulse"], cmd: { name: "Pomodoro", ...go("pomodoro") } },
@@ -1134,19 +1322,13 @@ const PAGES = {
 
   network() {
     const s = buildNetwork();
-    const live = netLiveStats();
     const peakHour = formatPeakHour(s.hourly), peakDay = formatPeakDay(s.daily, s.monthAbbr);
     const avg = Math.floor(s.totalMonth / Math.max(1, s.curDay));
     // Details charts are rendered with isDarkTheme: true in NetworkUsagePage.cs, in both themes
     const small = { dark: true, w: 320, h: 185 };
     const charts = {
-      live: { kind: "netLive", ...small },
       today: { title: "Today Hourly", subtitle: `SINCE 00:00  |  PEAK: ${peakHour.toUpperCase()}`, buckets: s.hourly, active: s.curHour, ...small },
       month: { title: `${s.monthLabel} Daily`, subtitle: `PEAK: ${peakDay.toUpperCase()}  |  AVG: ${formatBytes(avg)}/DAY`, buckets: s.daily, active: s.curDay - 1, ...small },
-    };
-    const liveDetails = {
-      title: "Live Speed",
-      body: netLiveDetailsBody(live),
     };
     const todayDetails = {
       title: "Today (Hourly Usage)",
@@ -1161,21 +1343,8 @@ const PAGES = {
       { icon: "", ...refresh("Refresh Now") },
     ];
     const items = [
-      {
-        liveRow: "net",
-        icon: "\uE9D9",
-        title: `Live Speed: ↓ ${formatBps(live.cur.down)} • ↑ ${formatBps(live.cur.up)}`,
-        subtitle: "Last 60 seconds  •  updates every 2 s",
-        tags: [{ text: "Live", tone: "accent" }],
-        details: liveDetails,
-        cmd: { name: "Network Dashboard", ...go("networkDashboard") },
-        more: [
-          ...rowMore,
-          openDataSettings,
-        ],
-      },
-      { icon: "", title: `Today (since 00:00): ${formatBytes(s.totalToday)}`, subtitle: `↓ ${formatBytes(s.rxToday)}   •   ↑ ${formatBytes(s.txToday)}`, tags: ["Today"], details: todayDetails, cmd: openDataSettings, more: rowMore },
-      { icon: "", title: `This Month (${s.monthLabel}): ${formatBytes(s.totalMonth)}`, subtitle: `↓ ${formatBytes(s.rxMonth)}   •   ↑ ${formatBytes(s.txMonth)}`, tags: ["Month"], details: monthDetails, cmd: openDataSettings, more: rowMore },
+      { icon: "", title: `Today (since 00:00): ${formatBytes(s.totalToday)}`, subtitle: `↓ ${formatBytes(s.rxToday)}   •   ↑ ${formatBytes(s.txToday)}`, tags: ["Today"], details: todayDetails, cmd: { name: "Open Dashboard", run: () => { state.netRange = "today"; openPage("networkDashboard", false); } }, more: rowMore },
+      { icon: "", title: `This Month (${s.monthLabel}): ${formatBytes(s.totalMonth)}`, subtitle: `↓ ${formatBytes(s.rxMonth)}   •   ↑ ${formatBytes(s.txMonth)}`, tags: ["Month"], details: monthDetails, cmd: { name: "Open Dashboard", run: () => { state.netRange = "month"; openPage("networkDashboard", false); } }, more: rowMore },
     ];
     s.adapters.forEach((a, i) => {
       const key = "adapter" + i;
@@ -1200,11 +1369,10 @@ const PAGES = {
 
   networkDashboard() {
     const s = buildNetwork();
-    const live = netLiveStats();
     const peakHour = formatPeakHour(s.hourly), peakDay = formatPeakDay(s.daily, s.monthAbbr);
     const avg = Math.floor(s.totalMonth / Math.max(1, s.curDay));
-    const range = state.netRange || "live";
-    const rangeLabel = range === "today" ? "Today" : range === "month" ? "Month" : "Live";
+    const range = state.netRange === "month" ? "month" : "today";
+    const rangeLabel = range === "month" ? "Month" : "Today";
     const big = { dark: true, w: 480, h: 250, center: true };
 
     let chartSpec, statsBlock;
@@ -1220,13 +1388,9 @@ const PAGES = {
         center: true,
         md: `**Total:** ${formatBytes(s.totalMonth)}  \n**Download:** ${formatBytes(s.rxMonth)}  •  **Upload:** ${formatBytes(s.txMonth)}  \n**Daily Average:** ${formatBytes(avg)}  •  **Peak Day:** ${peakDay}`,
       };
-    } else {
-      chartSpec = { kind: "netLive", ...big };
-      statsBlock = { center: true, liveStats: "net-dash", md: netLiveDashMd(live) };
     }
 
     const doRefresh = () => {
-      if (state.netRange === "live") pushNetLiveSample();
       toast("Network usage refreshed");
     };
 
@@ -1236,7 +1400,6 @@ const PAGES = {
       title: `Network Dashboard  •  ${rangeLabel}`,
       icon: "\uE774",
       commands: [
-        { icon: "\uE9D9", name: "Show Live Speed", run: () => { state.netRange = "live"; } },
         { icon: "\uE8BF", name: "Show Today", run: () => { state.netRange = "today"; } },
         { icon: "\uE787", name: "Show This Month", run: () => { state.netRange = "month"; } },
         { icon: "\uE72C", name: "Refresh Now", run: doRefresh },
@@ -1248,13 +1411,12 @@ const PAGES = {
           form: {
             compact: true,
             actions: [
-              { id: "live", icon: "\uE9D9", label: "Live", primary: range === "live" },
               { id: "today", icon: "\uE8BF", label: "Today", primary: range === "today" },
               { id: "month", icon: "\uE787", label: "Month", primary: range === "month" },
               { id: "refresh", icon: "\uE72C", label: "Refresh" },
             ],
             onAction(actionId) {
-              if (actionId === "live" || actionId === "today" || actionId === "month") {
+              if (actionId === "today" || actionId === "month") {
                 state.netRange = actionId;
                 render();
               } else if (actionId === "refresh") {
@@ -1265,6 +1427,187 @@ const PAGES = {
           },
         },
         statsBlock,
+      ],
+    };
+  },
+
+  football() {
+    const ms = footballMatches();
+    const charts = {};
+    const items = [];
+    const source = {
+      section: "About",
+      icon: "\uE72E",
+      title: "Scores from ESPN",
+      subtitle: "Checked every 15 minutes, and every minute while one of your teams is playing",
+      cmd: uri("Open ESPN Football", "https://www.espn.com/soccer/"),
+    };
+    if (state.football.teams.length === 0) {
+      return {
+        kind: "list", name: "Football", title: "Football", icon: "\uE734", placeholder: "Filter matches and teams...",
+        items: [
+          { icon: "\uE710", title: "Add your teams", subtitle: "Pick clubs from the big European leagues, MLS and the Saudi Pro League", cmd: { name: "Add Team", ...go("footballAdd") } },
+          ...FOOTBALL_STARS.map(s => ({ icon: crestIcon(s.team), title: `Follow ${s.player}`, subtitle: `Adds ${FOOTBALL_TEAMS[s.team].name} (${leagueName(FOOTBALL_TEAMS[s.team].league)})`, cmd: { name: "Add Team", run: () => { state.football.teams.push(s.team); toast(`Added ${FOOTBALL_TEAMS[s.team].name}`); } } })),
+          source,
+        ],
+      };
+    }
+    const matchItem = (m, section) => {
+      const key = "match-" + m.id;
+      charts[key] = { kind: "match", match: m };
+      const extra = m.state === "in" ? `**Live:** ${m.minute}'  \n` : m.state === "post" ? "**Full time**  \n" : "";
+      return {
+        section, icon: crestIcon(myTeamIn(m)), title: matchTitle(m),
+        subtitle: m.state === "pre" ? leagueName(m.league) : `${leagueName(m.league)}  •  ${m.state === "in" ? "Kicked off " + matchWhen(m).replace("Today ", "") : matchWhen(m)}`,
+        tags: [matchTag(m)],
+        details: { title: leagueName(m.league), body: `![Match](chart:${key})\n\n${extra}**Kickoff:** ${longDate(m.kickoff)}, ${String(m.kickoff.getHours()).padStart(2, "0")}:${String(m.kickoff.getMinutes()).padStart(2, "0")} (your time)` },
+        cmd: uri("Open Match on ESPN", "https://www.espn.com/soccer/match/"),
+        more: [{ icon: "\uE72C", name: "Refresh Scores", run: () => toast("Scores refreshed") }],
+      };
+    };
+    const live = ms.filter(m => m.state === "in");
+    const next = ms.filter(m => m.state === "pre").sort((a, b) => a.kickoff - b.kickoff);
+    const results = ms.filter(m => m.state === "post").sort((a, b) => b.kickoff - a.kickoff).slice(0, 3);
+    live.forEach(m => items.push(matchItem(m, "Live")));
+    next.forEach(m => items.push(matchItem(m, "Coming up")));
+    results.forEach(m => items.push(matchItem(m, "Results")));
+    for (const id of state.football.teams) {
+      const t = FOOTBALL_TEAMS[id];
+      const n = next.find(m => m.home === id || m.away === id);
+      items.push({
+        section: "My teams", icon: crestIcon(id), title: t.name,
+        subtitle: n ? `${leagueName(t.league)}  •  next: ${matchWhen(n)} vs ${FOOTBALL_TEAMS[n.home === id ? n.away : n.home].short}` : leagueName(t.league),
+        cmd: uri("Open Team on ESPN", "https://www.espn.com/soccer/team/"),
+        more: [{ icon: "\uE74D", name: "Remove Team", run: () => { state.football.teams = state.football.teams.filter(x => x !== id); toast(`Removed ${t.name}`); } }],
+      });
+    }
+    items.push({ section: "My teams", icon: "\uE710", title: "Add Team...", subtitle: "European leagues, MLS and Saudi Pro League", cmd: { name: "Add Team", ...go("footballAdd") } });
+    items.push({ section: "About", icon: "\uE72C", title: "Refresh Scores", subtitle: "Last checked at 14:09", cmd: { name: "Refresh Now", run: () => toast("Scores refreshed") } });
+    items.push(source);
+    return { kind: "list", name: "Football", title: "Football", icon: "\uE734", placeholder: "Filter matches and teams...", showDetails: true, charts, items };
+  },
+
+  footballAdd() {
+    const items = [];
+    const toggle = id => () => {
+      const t = FOOTBALL_TEAMS[id];
+      if (state.football.teams.includes(id)) { state.football.teams = state.football.teams.filter(x => x !== id); toast(`Removed ${t.name}`); }
+      else { state.football.teams.push(id); toast(`Added ${t.name}`); }
+    };
+    const added = id => state.football.teams.includes(id) ? [{ text: "Added", tone: "accent" }] : [];
+    for (const s of FOOTBALL_STARS) {
+      const t = FOOTBALL_TEAMS[s.team];
+      items.push({ section: "Popular", icon: crestIcon(s.team), title: `${t.name} (${s.player})`, subtitle: leagueName(t.league), tags: added(s.team), cmd: { name: state.football.teams.includes(s.team) ? "Remove Team" : "Add Team", run: toggle(s.team) } });
+    }
+    for (const lg of FOOTBALL_LEAGUES) {
+      for (const [id, t] of Object.entries(FOOTBALL_TEAMS)) {
+        if (t.league !== lg.id) continue;
+        items.push({ section: lg.name, icon: crestIcon(id), title: t.name, subtitle: lg.name, tags: added(id), cmd: { name: state.football.teams.includes(id) ? "Remove Team" : "Add Team", run: toggle(id) } });
+      }
+    }
+    return { kind: "list", name: "Add Team", title: "Add Team", icon: "\uE710", placeholder: "Search teams...", items };
+  },
+
+  calendar() {
+    const today = nowDate();
+    const lead = (today.getDay() + 6) % 7; // Monday-first week in the preview
+    const weekStart = new Date(today.getFullYear(), today.getMonth(), today.getDate() - lead + state.calendarOffset * 7);
+    const mid = new Date(weekStart.getFullYear(), weekStart.getMonth(), weekStart.getDate() + 3);
+    const isCurrent = state.calendarOffset === 0;
+    const left = daysInYear(today.getFullYear()) - dayOfYear(today);
+    const move = delta => { state.calendarOffset = delta === 0 ? 0 : state.calendarOffset + delta; };
+    return {
+      kind: "content",
+      name: "Calendar",
+      title: `Calendar  •  ${monthNamesFor(state.calendar.main)[datePartsIn(state.calendar.main, mid).month - 1]} ${datePartsIn(state.calendar.main, mid).year}`,
+      icon: "\uE787",
+      commands: [
+        { icon: "\uE76B", name: "Previous Week", run: () => move(-1) },
+        { icon: "\uE8D1", name: "Go to Today", run: () => move(0) },
+        { icon: "\uE76C", name: "Next Week", run: () => move(1) },
+        ...calendarMore(today),
+      ],
+      content: [
+        { cal: { weekStart, mid, today } },
+        {
+          form: {
+            compact: true,
+            align: "start",
+            actions: [
+              { id: "prev", icon: "\uE76B", label: "Previous" },
+              { id: "today", icon: "\uE8D1", label: "Today", primary: isCurrent },
+              { id: "next", icon: "\uE76C", label: "Next" },
+              { id: "settings", icon: "\uE713", label: "Settings" },
+            ],
+            onAction(actionId) {
+              if (actionId === "prev") move(-1);
+              else if (actionId === "next") move(1);
+              else if (actionId === "today") move(0);
+              else if (actionId === "settings") { openPage("calendarSettings", false); return; }
+              render();
+            },
+          },
+        },
+        {
+          md: `**${longDate(today)}**  \n${formatPersian(today)}  •  ${formatQamari(today)}  \nWeek ${isoWeek(today)}  •  Day ${dayOfYear(today)} of ${daysInYear(today.getFullYear())}  •  ${left} days left this year`,
+        },
+      ],
+    };
+  },
+
+  calendarSettings() {
+    const c = state.calendar;
+    const today = nowDate();
+    const p = persianDate(today);
+    const pick = (selected, text) => selected ? [{ text, tone: "accent" }] : [];
+    const names = key => PERSIAN_MONTHS[key].slice(0, 3).join(", ") + "...";
+    const qamariFor = adj => { const keep = c.qamariAdjust; c.qamariAdjust = adj; const s = formatQamari(today); c.qamariAdjust = keep; return s; };
+    return {
+      kind: "list", name: "Calendar Settings", title: "Calendar Settings", icon: "\uE713", placeholder: "Filter settings...",
+      items: [
+        { section: "Main calendar", icon: "\uE787", title: CALENDAR_LABELS.gregorian, subtitle: `Today: ${formatIn("gregorian", today)}`, tags: pick(c.main === "gregorian", "Selected"), cmd: { name: "Use as Main Calendar", run: () => { c.main = "gregorian"; toast(`Main calendar: ${CALENDAR_LABELS.gregorian}`); } } },
+        { section: "Main calendar", icon: "\uE787", title: CALENDAR_LABELS.persian, subtitle: `Today: ${formatIn("persian", today)}`, tags: pick(c.main === "persian", "Selected"), cmd: { name: "Use as Main Calendar", run: () => { c.main = "persian"; toast(`Main calendar: ${CALENDAR_LABELS.persian}`); } } },
+        { section: "Main calendar", icon: "\uE787", title: CALENDAR_LABELS.qamari, subtitle: `Today: ${formatIn("qamari", today)}`, tags: pick(c.main === "qamari", "Selected"), cmd: { name: "Use as Main Calendar", run: () => { c.main = "qamari"; toast(`Main calendar: ${CALENDAR_LABELS.qamari}`); } } },
+        { section: "Persian month names", icon: "\uE787", title: names("afghan"), subtitle: `Afghanistan (Dari)  •  today: ${p.day} ${PERSIAN_MONTHS.afghan[p.month - 1]} ${p.year}`, tags: pick(c.persianNames === "afghan", "Selected"), cmd: { name: "Use These Names", run: () => { c.persianNames = "afghan"; toast("Persian months: Hamal, Sawr, Jawza..."); } } },
+        { section: "Persian month names", icon: "\uE787", title: names("iranian"), subtitle: `Iran (Farsi)  •  today: ${p.day} ${PERSIAN_MONTHS.iranian[p.month - 1]} ${p.year}`, tags: pick(c.persianNames === "iranian", "Selected"), cmd: { name: "Use These Names", run: () => { c.persianNames = "iranian"; toast("Persian months: Farvardin, Ordibehesht, Khordad..."); } } },
+        { section: "Qamari date", icon: "\uE708", title: "One day earlier", subtitle: `Today: ${qamariFor(-1)}`, tags: pick(c.qamariAdjust === -1, "Selected"), cmd: { name: "Use This", run: () => { c.qamariAdjust = -1; toast("Qamari date: one day earlier"); } } },
+        { section: "Qamari date", icon: "\uE708", title: "Umm al-Qura calendar (no change)", subtitle: `Today: ${qamariFor(0)}`, tags: pick(c.qamariAdjust === 0, "Selected"), cmd: { name: "Use This", run: () => { c.qamariAdjust = 0; toast("Qamari date: Umm al-Qura"); } } },
+        { section: "Qamari date", icon: "\uE708", title: "One day later", subtitle: `Today: ${qamariFor(1)}`, tags: pick(c.qamariAdjust === 1, "Selected"), cmd: { name: "Use This", run: () => { c.qamariAdjust = 1; toast("Qamari date: one day later"); } } },
+        { section: "Qamari date", icon: "\uE946", title: "Why adjust the Qamari date?", subtitle: "Months start with the moon sighting, so where you live the date can be a day off from Umm al-Qura", cmd: { name: "OK", run: () => {} } },
+      ],
+    };
+  },
+
+  location() {
+    const loc = resolveLocation();
+    const more = locationMore(loc);
+    const source = {
+      icon: "",
+      title: "Looked up with freeipapi.com",
+      subtitle: "DockPulse asks once when your network changes, and at most every 30 minutes",
+      cmd: uri("Open freeipapi.com", "https://freeipapi.com"),
+    };
+    if (!loc) {
+      return {
+        kind: "list", name: "My Location", title: "My Location (Public IP)", icon: "", placeholder: "Filter location details...",
+        items: [
+          { icon: "", title: "You're offline", subtitle: "DockPulse will look up your location again when you're back online", tags: [{ text: "Offline", tone: "danger" }], cmd: { icon: "", name: "Refresh Location", run: () => toast("Still offline") }, more },
+          { icon: "", title: "Open Network & Internet Settings", subtitle: "Check your connection in Windows Settings", cmd: uri("Open Network Settings", "ms-settings:network") },
+          source,
+        ],
+      };
+    }
+    const placeTags = [loc.cc];
+    if (loc.vpn) placeTags.push({ text: "VPN", tone: "accent" });
+    return {
+      kind: "list", name: "My Location", title: "My Location (Public IP)", icon: "", placeholder: "Filter location details...",
+      items: [
+        { icon: "", title: `${loc.city}, ${loc.region}, ${loc.country}`, subtitle: "Approximate location of your public IP", tags: placeTags, cmd: { name: "Open in Maps", run: () => toast(`Would open https://www.bing.com/maps?cp=${loc.lat}~${loc.lon}&lvl=11`) }, more },
+        { icon: "", title: `Public IP: ${loc.ip}`, subtitle: `${loc.isp} • ${loc.asn}`, tags: ["IPv4"], cmd: { name: "Copy Public IP", run: () => toast(`Copied ${loc.ip}`) }, more },
+        { icon: loc.adapterIcon, title: `Active Adapter: ${loc.adapter}`, subtitle: `Local IP ${loc.localIp}`, tags: loc.vpn ? [{ text: "VPN", tone: "accent" }] : [], cmd: { name: "Copy Local IP", run: () => toast(`Copied ${loc.localIp}`) } },
+        { icon: "", title: `Time Zone: ${loc.tz}`, subtitle: `${loc.utc} at this location`, cmd: { name: "Copy Time Zone", run: () => toast(`Copied ${loc.tz}`) } },
+        { icon: "", title: "Refresh Location", subtitle: `Last checked at ${loc.checkedAt} • updates when your network changes`, cmd: { name: "Refresh Now", run: () => toast("Location refreshed") } },
+        source,
       ],
     };
   },
@@ -2006,6 +2349,9 @@ function dockBands() {
       { icon: "", ...refresh("Refresh Network Usage") },
       { icon: "", ...uri("Data Usage Settings", "ms-settings:datausage") },
     ] },
+    locationBand(),
+    calendarBand(),
+    footballBand(),
     { label: "Next Prayer Time", page: "prayer", icon: prayerGlyph(pr.next.name), title: pr.countdownShort, subtitle: `${hhmm(pr.next.t)} • ${pr.region.city}`, more: [
       { icon: "", name: "Change Region & Timezone", ...go("region") },
       { icon: "", name: "Change Calculation Method", ...go("method") },
@@ -2043,6 +2389,55 @@ function dockBands() {
     },
     wfBand(),
   ];
+}
+
+/* Football band (DockBands/FootballDockBandItem.cs): live match, then a recent result, then the next match */
+function footballBand() {
+  const more = [
+    { icon: "\uE72C", name: "Refresh Scores", run: () => toast("Scores refreshed") },
+    { icon: "\uE710", name: "Add Team...", ...go("footballAdd") },
+  ];
+  if (state.football.teams.length === 0) return { label: "Football", page: "football", icon: "\uE734", title: "Football", subtitle: "Add your teams", more };
+  const m = dockMatch();
+  if (!m) return { label: "Football", page: "football", icon: "\uE734", title: "No matches", subtitle: "Next 3 weeks", more };
+  const subtitle = m.state === "in" ? `LIVE ${m.minute}'  •  ${leagueName(m.league)}` : m.state === "post" ? "Full time" : matchWhen(m);
+  return { label: "Football", page: "football", icon: crestIcon(myTeamIn(m)), title: matchTitle(m), subtitle, more };
+}
+
+/* Calendar band (DockBands/CalendarDockBandItem.cs): today's date; click opens the month calendar */
+function calendarMore(d) {
+  return [
+    { icon: "", name: `Copy Date (${isoDate(d)})`, run: () => toast(`Copied ${isoDate(d)}`) },
+    { icon: "", name: "Copy Long Date", run: () => toast(`Copied ${longDate(d)}`) },
+    { icon: "", name: "Calendar Settings", ...go("calendarSettings") },
+  ];
+}
+function calendarBand() {
+  const d = nowDate();
+  return {
+    label: "Calendar", page: "calendar", icon: "",
+    title: `${WEEKDAYS_SHORT[d.getDay()]}, ${MONTHS[d.getMonth()].slice(0, 3)} ${d.getDate()}`,
+    subtitle: `Week ${isoWeek(d)}`,
+    more: calendarMore(d),
+  };
+}
+
+/* Location band (DockBands/LocationDockBandItem.cs): city and country of the public IP */
+function locationMore(loc) {
+  const more = [{ icon: "", name: "Refresh Location", run: () => toast(loc ? "Location refreshed" : "Still offline") }];
+  if (loc) {
+    more.unshift(
+      { icon: "", name: "Copy Public IP", run: () => toast(`Copied ${loc.ip}`) },
+      { icon: "", name: "Open in Maps", run: () => toast(`Would open https://www.bing.com/maps?cp=${loc.lat}~${loc.lon}&lvl=11`) },
+    );
+  }
+  return more;
+}
+function locationBand() {
+  const loc = resolveLocation();
+  return loc
+    ? { label: "My Location", page: "location", icon: "", title: `${loc.city}, ${loc.cc}`, subtitle: loc.vpn ? `VPN • ${loc.ip}` : loc.ip, more: locationMore(loc) }
+    : { label: "My Location", page: "location", icon: "", title: "Offline", subtitle: "No internet", more: locationMore(null) };
 }
 
 /* Working Folder band (DockBands/WorkingFolderDockBandItem.cs): one click opens the folder in File Explorer */
@@ -2735,6 +3130,148 @@ function drawAiCompareCard(cv, spec) {
 /* =====================================================================
    Pomodoro card & weekly stats renderers (PNG via C# renderer)
    ===================================================================== */
+/* Match card for the details pane: port of FootballCardRenderer.RenderMatchPng. Same layout as a
+   scoreboard row: status pill, home name + crest, time or score, crest + away name. */
+function drawCrest(c, id, cx, cy, r) {
+  const t = FOOTBALL_TEAMS[id];
+  c.beginPath(); c.arc(cx, cy, r, 0, Math.PI * 2); c.fillStyle = t.bg; c.fill();
+  c.lineWidth = 1.5; c.strokeStyle = "rgba(255,255,255,0.85)"; c.stroke();
+  c.fillStyle = t.fg; c.textAlign = "center"; c.textBaseline = "middle";
+  c.font = `800 ${t.abbr.length > 3 ? 7 : 8.5}px "Segoe UI", system-ui, sans-serif`;
+  c.fillText(t.abbr, cx, cy + 0.5);
+}
+function wrapLines(c, text, maxW) {
+  const words = text.split(" ");
+  const lines = [""];
+  for (const w of words) {
+    const tryLine = lines[lines.length - 1] ? lines[lines.length - 1] + " " + w : w;
+    if (c.measureText(tryLine).width <= maxW || !lines[lines.length - 1]) lines[lines.length - 1] = tryLine;
+    else lines.push(w);
+  }
+  return lines.slice(0, 2);
+}
+function drawMatchCard(cv, spec) {
+  const m = spec.match;
+  const w = 320, h = 76;
+  const dpr = Math.max(1, window.devicePixelRatio || 1);
+  cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr);
+  cv.style.width = w + "px"; cv.style.maxWidth = "none";
+  const c = cv.getContext("2d");
+  c.setTransform(dpr, 0, 0, dpr, 0, 0);
+  const FONT = '"Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif';
+  c.beginPath(); c.roundRect(0, 0, w, h, 10); c.fillStyle = "#3b3b3b"; c.fill();
+  const cy = h / 2;
+
+  // Status pill: live minute (mint) or FT (grey); nothing before kickoff
+  if (m.state !== "pre") {
+    const label = m.state === "in" ? `${m.minute}'` : "FT";
+    c.font = `700 10px ${FONT}`;
+    const pw = Math.max(26, c.measureText(label).width + 14);
+    c.beginPath(); c.roundRect(10, cy - 10, pw, 20, 10);
+    c.fillStyle = m.state === "in" ? "#5ef2c2" : "#5a5a5a"; c.fill();
+    c.fillStyle = m.state === "in" ? "#0b2a20" : "#ffffff"; c.textAlign = "center"; c.textBaseline = "middle";
+    c.fillText(label, 10 + pw / 2, cy + 0.5);
+  }
+
+  // Centre: kickoff time or score
+  const midX = 172;
+  c.textAlign = "center"; c.textBaseline = "middle"; c.fillStyle = "#ffffff";
+  if (m.state === "pre") {
+    const hh = m.kickoff.getHours(), mm = String(m.kickoff.getMinutes()).padStart(2, "0");
+    c.font = `700 15px ${FONT}`; c.fillText(`${String(hh).padStart(2, "0")}:${mm}`, midX, cy);
+  } else {
+    c.font = `700 17px ${FONT}`; c.fillText(`${m.hs} - ${m.as}`, midX, cy);
+  }
+
+  // Crests either side of the centre, names outside them (wrapping to two lines like long club names)
+  drawCrest(c, m.home, midX - 40, cy, 11);
+  drawCrest(c, m.away, midX + 40, cy, 11);
+  c.font = `700 12.5px ${FONT}`; c.fillStyle = "#ffffff"; c.textBaseline = "middle";
+  const homeLines = wrapLines(c, FOOTBALL_TEAMS[m.home].short, 78);
+  const awayLines = wrapLines(c, FOOTBALL_TEAMS[m.away].short, 84);
+  c.textAlign = "right";
+  homeLines.forEach((l, i) => c.fillText(l, midX - 58, cy + (i - (homeLines.length - 1) / 2) * 15));
+  c.textAlign = "left";
+  awayLines.forEach((l, i) => c.fillText(l, midX + 58, cy + (i - (awayLines.length - 1) / 2) * 15));
+}
+
+/* Calendar card: port of CalendarRenderer.RenderWeekPng. Blue gradient, month carousel, one week with a
+   pill on today, and the two other calendars at the bottom. Year, months and dates follow the main
+   calendar chosen in Calendar Settings. The year starts at x = 20, the same left edge as the buttons. */
+function drawCalendarCard(cv, cal) {
+  const w = 800, h = 244, L = 24; // wide card, scaled to the page width like CalendarRenderer
+  const dpr = Math.max(1, window.devicePixelRatio || 1);
+  cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr);
+  cv.style.width = "100%"; cv.style.maxWidth = (w * 2) + "px"; cv.style.height = "auto";
+  const c = cv.getContext("2d");
+  c.setTransform(dpr, 0, 0, dpr, 0, 0);
+  const FONT = '"Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif';
+  const main = state.calendar.main;
+
+  // Background
+  const g = c.createLinearGradient(0, 0, 0, h);
+  g.addColorStop(0, "#40508a"); g.addColorStop(1, "#28336a");
+  c.beginPath(); c.roundRect(0, 0, w, h, 16); c.fillStyle = g; c.fill();
+  c.save(); c.beginPath(); c.roundRect(0, 0, w, h, 16); c.clip();
+
+  // Year, top left (lines up with the buttons below)
+  const midParts = datePartsIn(main, cal.mid);
+  c.textBaseline = "alphabetic"; c.textAlign = "left";
+  c.font = `600 18px ${FONT}`; c.fillStyle = "#ffffff";
+  c.fillText(String(midParts.year), L, 34);
+
+  // Month carousel: current month in front, the next ones faded and cut off at the right edge
+  const names = monthNamesFor(main);
+  const name = i => names[((i % 12) + 12) % 12];
+  const m = midParts.month - 1;
+  const curX = L, gap = 40, baseY = 100; // leaves a clear gap under the year
+  c.font = `700 38px ${FONT}`;
+  const curW = c.measureText(name(m)).width;
+  c.fillStyle = "#ffffff"; c.fillText(name(m), curX, baseY);
+  c.beginPath(); c.arc(curX + curW / 2, baseY - 44, 2.5, 0, Math.PI * 2); c.fill();
+  c.font = `700 32px ${FONT}`; c.fillStyle = "rgba(255,255,255,0.22)";
+  let x = curX + curW + gap;
+  for (let k = 1; k <= 4 && x < w; k++) {
+    c.fillText(name(m + k), x, baseY);
+    x += c.measureText(name(m + k)).width + gap;
+  }
+
+  // Week strip with a pill on today
+  const colW = (w - L * 2) / 7;
+  const t = cal.today;
+  const letters = ["M", "T", "W", "T", "F", "S", "S"];
+  c.textAlign = "center";
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(cal.weekStart.getFullYear(), cal.weekStart.getMonth(), cal.weekStart.getDate() + i);
+    const p = datePartsIn(main, d);
+    const cx = L + colW * i + colW / 2;
+    const isToday = d.getFullYear() === t.getFullYear() && d.getMonth() === t.getMonth() && d.getDate() === t.getDate();
+    if (isToday) {
+      c.beginPath(); c.roundRect(cx - 26, 118, 52, 86, 26); c.fillStyle = "#6c7bff"; c.fill();
+    }
+    c.font = `600 13px ${FONT}`; c.fillStyle = isToday ? "rgba(255,255,255,0.85)" : "rgba(255,255,255,0.5)";
+    c.fillText(letters[i], cx, 146);
+    c.font = `${isToday ? 700 : 500} 23px ${FONT}`;
+    c.fillStyle = p.month - 1 === m || isToday ? "#ffffff" : "rgba(255,255,255,0.45)";
+    c.fillText(String(p.day), cx, 188);
+  }
+
+  // Footer: today in the two other calendars
+  const others = ["gregorian", "persian", "qamari"].filter(k => k !== main);
+  c.strokeStyle = "rgba(255,255,255,0.12)"; c.lineWidth = 1;
+  c.beginPath(); c.moveTo(L, 214.5); c.lineTo(w - L, 214.5); c.stroke();
+  const label = k => k.toUpperCase();
+  c.font = `600 11px ${FONT}`; c.fillStyle = "rgba(255,255,255,0.45)";
+  c.textAlign = "left"; c.fillText(label(others[0]), L, 235);
+  const leftLabelW = c.measureText(label(others[0])).width;
+  c.textAlign = "right"; c.fillText(label(others[1]), w - L, 235);
+  const rightLabelW = c.measureText(label(others[1])).width;
+  c.font = `600 14px ${FONT}`; c.fillStyle = "#ffffff";
+  c.textAlign = "left"; c.fillText(formatIn(others[0], t), L + leftLabelW + 10, 235);
+  c.textAlign = "right"; c.fillText(formatIn(others[1], t), w - L - rightLabelW - 10, 235);
+  c.restore();
+}
+
 function drawPomodoroCard(cv, p) {
   const w = 480, h = 340;
   const dark = isDark();
@@ -2965,7 +3502,7 @@ function renderDock() {
 
 function renderFormBlock(form) {
   const card = document.createElement("form");
-  card.className = "form-card" + (form.compact ? " compact" : "");
+  card.className = "form-card" + (form.compact ? " compact" : "") + (form.align === "start" ? " start" : "");
   card.noValidate = true;
 
   if (form.title) {
@@ -3117,6 +3654,13 @@ function renderBody() {
         cv.setAttribute("aria-label", `Pomodoro ${formatMmSs(block.pomo.remainingSec)}`);
         wrap.appendChild(cv);
         drawPomodoroCard(cv, block.pomo);
+      } else if (block.cal) {
+        const cv = document.createElement("canvas");
+        cv.className = "chart";
+        cv.setAttribute("role", "img");
+        cv.setAttribute("aria-label", `Calendar, week of ${longDate(block.cal.weekStart)}`);
+        wrap.appendChild(cv);
+        drawCalendarCard(cv, block.cal);
       } else if (block.pomoStats) {
         const cv = document.createElement("canvas");
         cv.className = "chart";
@@ -3220,7 +3764,8 @@ function selectRow(i) {
     det.querySelectorAll("canvas[data-chart]").forEach(cv => {
       const spec = current.charts[cv.dataset.chart];
       if (spec) {
-        if (spec.kind === "aiBars") drawAiUsageCard(cv, spec);
+        if (spec.kind === "match") drawMatchCard(cv, spec);
+        else if (spec.kind === "aiBars") drawAiUsageCard(cv, spec);
         else if (spec.kind === "aiCompare") drawAiCompareCard(cv, spec);
         else if (spec.kind === "netLive") {
           cv.setAttribute("data-live", "net");
@@ -3404,8 +3949,17 @@ $("scenario").addEventListener("change", e => {
     state.pomodoro.running = false;
   }
 
-  if (state.scenario === "net_live") {
-    state.netRange = "live";
+  state.calendar.main = state.scenario === "cal_persian" ? "persian" : state.scenario === "cal_qamari" ? "qamari" : "gregorian";
+  state.football.teams = state.scenario === "football_none" ? [] : ["man-united", "al-nassr", "inter-miami"];
+  if (state.scenario.startsWith("football_")) {
+    state.stack = ["home", "football"];
+  } else if (state.scenario === "cal_persian" || state.scenario === "cal_qamari") {
+    state.calendarOffset = 0;
+    state.stack = ["home", "calendar"];
+  } else if (state.scenario === "loc_vpn" || state.scenario === "loc_offline") {
+    state.stack = ["home", "location"];
+  } else if (state.scenario === "net_dashboard") {
+    state.netRange = "month";
     state.stack = ["home", "network", "networkDashboard"];
   } else if (state.scenario === "ai_compare") {
     state.aiWindow = "5h";

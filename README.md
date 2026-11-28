@@ -1,6 +1,6 @@
 # DockPulse
 
-DockPulse adds seven small bands to the [PowerToys Command Palette](https://learn.microsoft.com/windows/powertoys/command-palette/overview) Dock. They show your mouse and headphone batteries, how much data you've used today, how much of your Claude or Codex limit is left, the next prayer time, and a few other things you'd otherwise open an app to check.
+DockPulse adds ten small bands to the [PowerToys Command Palette](https://learn.microsoft.com/windows/powertoys/command-palette/overview) Dock. They show your mouse and headphone batteries, how much data you've used today, how much of your Claude or Codex limit is left, the next prayer time, and a few other things you'd otherwise open an app to check.
 
 [Get it from the Microsoft Store](https://apps.microsoft.com/detail/9NNZWHMWTZ86) or install it with winget:
 
@@ -8,7 +8,7 @@ DockPulse adds seven small bands to the [PowerToys Command Palette](https://lear
 winget install 9NNZWHMWTZ86 --source msstore
 ```
 
-![The Dock with all seven DockPulse bands, above the DockPulse commands in Command Palette](docs/images/dock.png)
+![The Dock with the DockPulse bands, above the DockPulse commands in Command Palette](docs/images/dock.png)
 
 ## The bands
 
@@ -18,6 +18,9 @@ You can turn on any of the bands and leave the rest off. Clicking a band opens i
 | --- | --- |
 | **Wireless Battery** | Battery levels of connected Bluetooth and BLE devices, AirPods and Beats (left, right and case), Logitech devices on LIGHTSPEED, Bolt or Unifying receivers, and Xbox controllers. You choose which device the Dock shows. |
 | **Network Usage** | Data used today (hour by hour) and this month (day by day), in total and for each network adapter. The numbers come from Windows' own data usage records. |
+| **My Location** | The city and country of your public IP, and your network provider. On a VPN it shows where the VPN puts you. |
+| **Football** | Your teams' next match, the live score and minute while they play, and the result at full time, with club crests. Pick teams from the Premier League, LaLiga, Serie A, Bundesliga, Ligue 1, MLS and the Saudi Pro League (Ronaldo's Al Nassr and Messi's Inter Miami are one click away). |
+| **Calendar** | Today's date and week number. Click it for a week card in Gregorian, Persian (Solar Hijri, with Afghan or Iranian month names) or Qamari dates, with the other two calendars underneath. |
 | **AI Usage Limits** | What's left of your 5-hour and weekly limits for Claude, Codex and Antigravity. The Dock can show one provider or whichever limit is closest to running out. |
 | **Next Prayer Time** | A countdown to the next prayer, worked out offline. It has 61 cities in 34 countries, 10 Sunni and 2 Shia calculation methods, a Hanafi or standard Asr setting, and optional Windows notifications. |
 | **Today** | A checklist that resets at midnight, with a water counter and a coffee reminder. |
@@ -56,7 +59,7 @@ DockPulse never reads your sign-in tokens or credential files.
 
 ## Privacy
 
-Everything runs on your PC. DockPulse makes no network requests and collects no telemetry. The only exception is the Claude and Antigravity CLIs that DockPulse starts to read your usage limits, which talk to Anthropic and Google with your existing sign-in, as they do when you run them yourself. [PRIVACY.md](PRIVACY.md) lists every file and API DockPulse reads.
+Everything runs on your PC and DockPulse collects no telemetry. There are three exceptions, and each only starts once you use that band. The My Location band asks [freeipapi.com](https://freeipapi.com) where your public IP is, at most every 30 minutes and when your network changes. The Football band gets scores, fixtures and club crests from ESPN. The Claude and Antigravity CLIs that DockPulse starts to read your usage limits talk to Anthropic and Google with your existing sign-in, as they do when you run them yourself. [PRIVACY.md](PRIVACY.md) lists every file and API DockPulse reads.
 
 ## Building from source
 
@@ -90,7 +93,7 @@ Bug reports, ideas and pull requests are all welcome.
 
 - For anything bigger than a small fix, please open an issue first so we can agree on the approach before you write code.
 - If your change touches the UI (a band's text, a page, a chart), update [`ui-preview/index.html`](ui-preview/index.html) first. It's a single HTML file that opens in any browser with no build step. That way we can agree on how it looks before changing the C#. [AGENTS.md](AGENTS.md) has the details.
-- DockPulse promises to run locally. Please don't add network calls or telemetry.
+- DockPulse promises to run locally. Please don't add telemetry or new network calls; the My Location and Football bands are the deliberate exceptions.
 - Support for more devices is especially welcome: other headset brands, more Logitech features, and anything else that reports a battery level.
 
 ## License
