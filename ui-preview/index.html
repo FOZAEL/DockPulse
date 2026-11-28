@@ -3199,10 +3199,10 @@ function drawMatchCard(cv, spec) {
    pill on today, and the two other calendars at the bottom. Year, months and dates follow the main
    calendar chosen in Calendar Settings. The year starts at x = 20, the same left edge as the buttons. */
 function drawCalendarCard(cv, cal) {
-  const w = 480, h = 270, L = 20;
+  const w = 800, h = 230, L = 24; // wide card, scaled to the page width like CalendarRenderer
   const dpr = Math.max(1, window.devicePixelRatio || 1);
   cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr);
-  cv.style.width = w + "px"; cv.style.maxWidth = "100%";
+  cv.style.width = "100%"; cv.style.maxWidth = (w * 2) + "px"; cv.style.height = "auto";
   const c = cv.getContext("2d");
   c.setTransform(dpr, 0, 0, dpr, 0, 0);
   const FONT = '"Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif';
@@ -3211,27 +3211,27 @@ function drawCalendarCard(cv, cal) {
   // Background
   const g = c.createLinearGradient(0, 0, 0, h);
   g.addColorStop(0, "#40508a"); g.addColorStop(1, "#28336a");
-  c.beginPath(); c.roundRect(0, 0, w, h, 14); c.fillStyle = g; c.fill();
-  c.save(); c.beginPath(); c.roundRect(0, 0, w, h, 14); c.clip();
+  c.beginPath(); c.roundRect(0, 0, w, h, 16); c.fillStyle = g; c.fill();
+  c.save(); c.beginPath(); c.roundRect(0, 0, w, h, 16); c.clip();
 
   // Year, top left (lines up with the buttons below)
   const midParts = datePartsIn(main, cal.mid);
   c.textBaseline = "alphabetic"; c.textAlign = "left";
-  c.font = `600 17px ${FONT}`; c.fillStyle = "#ffffff";
-  c.fillText(String(midParts.year), L, 38);
+  c.font = `600 18px ${FONT}`; c.fillStyle = "#ffffff";
+  c.fillText(String(midParts.year), L, 34);
 
   // Month carousel: current month in front, the next ones faded and cut off at the right edge
   const names = monthNamesFor(main);
   const name = i => names[((i % 12) + 12) % 12];
   const m = midParts.month - 1;
-  const curX = L, gap = 36, baseY = 94;
-  c.font = `700 34px ${FONT}`;
+  const curX = L, gap = 40, baseY = 86;
+  c.font = `700 38px ${FONT}`;
   const curW = c.measureText(name(m)).width;
   c.fillStyle = "#ffffff"; c.fillText(name(m), curX, baseY);
-  c.beginPath(); c.arc(curX + curW / 2, baseY - 40, 2.5, 0, Math.PI * 2); c.fill();
-  c.font = `700 30px ${FONT}`; c.fillStyle = "rgba(255,255,255,0.22)";
+  c.beginPath(); c.arc(curX + curW / 2, baseY - 44, 2.5, 0, Math.PI * 2); c.fill();
+  c.font = `700 32px ${FONT}`; c.fillStyle = "rgba(255,255,255,0.22)";
   let x = curX + curW + gap;
-  for (let k = 1; k <= 2 && x < w; k++) {
+  for (let k = 1; k <= 4 && x < w; k++) {
     c.fillText(name(m + k), x, baseY);
     x += c.measureText(name(m + k)).width + gap;
   }
@@ -3247,28 +3247,28 @@ function drawCalendarCard(cv, cal) {
     const cx = L + colW * i + colW / 2;
     const isToday = d.getFullYear() === t.getFullYear() && d.getMonth() === t.getMonth() && d.getDate() === t.getDate();
     if (isToday) {
-      c.beginPath(); c.roundRect(cx - 23, 122, 46, 90, 23); c.fillStyle = "#6c7bff"; c.fill();
+      c.beginPath(); c.roundRect(cx - 26, 104, 52, 86, 26); c.fillStyle = "#6c7bff"; c.fill();
     }
-    c.font = `600 12px ${FONT}`; c.fillStyle = isToday ? "rgba(255,255,255,0.85)" : "rgba(255,255,255,0.5)";
-    c.fillText(letters[i], cx, 150);
-    c.font = `${isToday ? 700 : 500} 21px ${FONT}`;
+    c.font = `600 13px ${FONT}`; c.fillStyle = isToday ? "rgba(255,255,255,0.85)" : "rgba(255,255,255,0.5)";
+    c.fillText(letters[i], cx, 132);
+    c.font = `${isToday ? 700 : 500} 23px ${FONT}`;
     c.fillStyle = p.month - 1 === m || isToday ? "#ffffff" : "rgba(255,255,255,0.45)";
-    c.fillText(String(p.day), cx, 192);
+    c.fillText(String(p.day), cx, 174);
   }
 
   // Footer: today in the two other calendars
   const others = ["gregorian", "persian", "qamari"].filter(k => k !== main);
   c.strokeStyle = "rgba(255,255,255,0.12)"; c.lineWidth = 1;
-  c.beginPath(); c.moveTo(L, 228.5); c.lineTo(w - L, 228.5); c.stroke();
+  c.beginPath(); c.moveTo(L, 200.5); c.lineTo(w - L, 200.5); c.stroke();
   const label = k => k.toUpperCase();
-  c.font = `600 10px ${FONT}`; c.fillStyle = "rgba(255,255,255,0.45)";
-  c.textAlign = "left"; c.fillText(label(others[0]), L, 252);
+  c.font = `600 11px ${FONT}`; c.fillStyle = "rgba(255,255,255,0.45)";
+  c.textAlign = "left"; c.fillText(label(others[0]), L, 221);
   const leftLabelW = c.measureText(label(others[0])).width;
-  c.textAlign = "right"; c.fillText(label(others[1]), w - L, 252);
+  c.textAlign = "right"; c.fillText(label(others[1]), w - L, 221);
   const rightLabelW = c.measureText(label(others[1])).width;
-  c.font = `600 13px ${FONT}`; c.fillStyle = "#ffffff";
-  c.textAlign = "left"; c.fillText(formatIn(others[0], t), L + leftLabelW + 8, 252);
-  c.textAlign = "right"; c.fillText(formatIn(others[1], t), w - L - rightLabelW - 8, 252);
+  c.font = `600 14px ${FONT}`; c.fillStyle = "#ffffff";
+  c.textAlign = "left"; c.fillText(formatIn(others[0], t), L + leftLabelW + 10, 221);
+  c.textAlign = "right"; c.fillText(formatIn(others[1], t), w - L - rightLabelW - 10, 221);
   c.restore();
 }
 
@@ -3656,9 +3656,9 @@ function renderBody() {
         drawPomodoroCard(cv, block.pomo);
       } else if (block.cal) {
         const cv = document.createElement("canvas");
-        cv.className = "chart dash-chart";
+        cv.className = "chart";
         cv.setAttribute("role", "img");
-        cv.setAttribute("aria-label", `${MONTHS[block.cal.month]} ${block.cal.year} calendar`);
+        cv.setAttribute("aria-label", `Calendar, week of ${longDate(block.cal.weekStart)}`);
         wrap.appendChild(cv);
         drawCalendarCard(cv, block.cal);
       } else if (block.pomoStats) {

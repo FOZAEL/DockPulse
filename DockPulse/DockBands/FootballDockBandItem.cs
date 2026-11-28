@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using DockPulse.Commands;
 using DockPulse.Pages;
 using DockPulse.Services;
@@ -8,9 +9,31 @@ using Microsoft.CommandPalette.Extensions.Toolkit;
 namespace DockPulse.DockBands;
 
 /// <summary>Your teams' nearest match: live score first, then a recent result, then the next kickoff.</summary>
-internal sealed partial class FootballDockBandItem : ListItem, IDisposable
+internal sealed partial class FootballDockBandItem : ListItem, IExtendedAttributesProvider, IDisposable
 {
     private readonly FootballService _service;
+
+    // Let the Dock show whole match titles ("Al Hazem 1–2 Al Nassr") instead of cutting them off.
+    // Read by Command Palette 0.102+ (Microsoft.CommandPalette.Dock.MaxLabelWidth); older versions ignore it.
+    private readonly Dictionary<string, object> _attributes = new()
+    {
+        ["Microsoft.CommandPalette.Dock.MaxLabelWidth"] = "40ch",
+    };
+
+    // Keeps whatever the toolkit item already reports and adds the Dock label hint
+    public new IDictionary<string, object> GetProperties()
+    {
+        var merged = new Dictionary<string, object>(_attributes);
+        if (base.GetProperties() is { } inherited)
+        {
+            foreach (var pair in inherited)
+            {
+                merged.TryAdd(pair.Key, pair.Value);
+            }
+        }
+
+        return merged;
+    }
 
     public FootballDockBandItem(FootballService service, FootballPage page, FootballAddTeamPage addPage)
         : base(page)

@@ -132,7 +132,7 @@ internal sealed partial class CalendarPage : ContentPage, IDisposable
         var card = new CalendarRenderer.CardData(
             midDate.Year,
             monthName,
-            [months[midDate.Month % 12], months[(midDate.Month + 1) % 12]],
+            [months[midDate.Month % 12], months[(midDate.Month + 1) % 12], months[(midDate.Month + 2) % 12], months[(midDate.Month + 3) % 12]],
             week,
             CalendarService.ShortLabel(others[0]),
             _service.Format(others[0], today),
@@ -146,8 +146,9 @@ internal sealed partial class CalendarPage : ContentPage, IDisposable
         [
             new ImageContent(new IconInfo(iconData, iconData))
             {
-                MaxWidth = CalendarRenderer.Width,
-                MaxHeight = CalendarRenderer.Height,
+                // The PNG is drawn at 2x, so allow up to that size: the card then fills the page width
+                MaxWidth = CalendarRenderer.Width * 2,
+                MaxHeight = CalendarRenderer.Height * 2,
             },
             new CalendarControlsForm(offset == 0, HandleAction),
             new MarkdownContent(BuildSummary(today)),
